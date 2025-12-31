@@ -1,11 +1,21 @@
-import { App } from '@slack/bolt';
+import { App, StringIndexed } from '@slack/bolt';
 import { LanguageModelV3 } from '@ai-sdk/provider';
-import { ModelMessage, generateId, generateText } from 'ai';
-import { AppMentionEvent, GenericMessageEvent, MessageEvent } from '@slack/types';
-import { SlackHandlerContext } from './types';
-import { mergeMessageText, extractTextFromBlocks } from './utils/slack_blocks';
+import { type ToolSet } from 'ai';
+import { AppMentionEvent } from '@slack/types';
+import { respondWithLLM } from './slack/respond';
+import { isGenericMessageEvent, buildMessagesFromSlack } from './slack/messages';
+import {
+  decodeApprovalPayload,
+  extractApprovalPayloadFromBlocks,
+  handleApprovalDecision,
+} from './slack/approvals';
 
-export async function startSlack(botToken: string, appToken: string, model: LanguageModelV3) {
+export async function slackApp(
+  botToken: string,
+  appToken: string,
+  model: LanguageModelV3,
+  tools?: ToolSet,
+): Promise<App<StringIndexed>> {
   const app = new App({
     token: botToken,
     appToken: appToken,
@@ -25,137 +35,122 @@ export async function startSlack(botToken: string, appToken: string, model: Lang
       return;
     }
 
-    await respondWithLLM({ message, say, client, logger }, model);
+    await respondWithLLM({ message, say, client, logger }, model, tools);
   });
 
   app.event('app_mention', async ({ event, say, client, logger }) => {
     const message = event as AppMentionEvent;
-    await respondWithLLM({ message, say, client, logger }, model);
+    await respondWithLLM({ message, say, client, logger }, model, tools);
   });
 
-  await app.start();
-  console.log('Slack echo bot running in socket mode');
-}
+  app.action('tool_approval_approve', async ({ ack, body, client, logger }) => {
+    await ack();
 
-const systemPrompt = `You are a Slack bot assigned to work as a customer service for Flanksource's Mission Control customers.
-  Flanksource Mission Control is an Internal Developer Platform that helps teams improve developer productivity and operational resilience
+    const actionValue =
+      'actions' in body && body.actions?.[0] && 'value' in body.actions[0]
+        ? body.actions[0].value
+        : undefined;
+    const channel = 'channel' in body ? body.channel?.id : undefined;
+    const message = 'message' in body ? body.message : undefined;
+    const threadTs = message?.thread_ts ?? undefined;
+    if (!channel) {
+      logger.warn('Approval action missing channel');
+      return;
+    }
 
-  Format responses using Slack mrkdwn.
-  "Avoid Markdown features Slack doesn't support, like # headers.`;
-
-export async function respondWithLLM(
-  { message, say, client, logger }: SlackHandlerContext,
-  model: LanguageModelV3,
-) {
-  const text = message.text ?? '';
-  const { channel, user } = message;
-  const messageTs = message.ts;
-  const threadTs = 'thread_ts' in message ? message.thread_ts : undefined;
-  const requestId = generateId();
-
-  logger.info({ requestId, channel, user }, 'New message');
-
-  await client.reactions.add({
-    channel,
-    name: 'eyes',
-    timestamp: messageTs,
-  });
-
-  try {
-    if (!text.trim()) {
-      await say({
-        text: 'Please send some text.',
+    const payload =
+      (actionValue ? decodeApprovalPayload(actionValue) : null) ??
+      extractApprovalPayloadFromBlocks(message?.blocks);
+    if (!payload || payload.approvals.length === 0) {
+      await client.chat.postMessage({
+        channel,
+        text: 'No pending tool approvals found for this thread.',
         ...(threadTs ? { thread_ts: threadTs } : {}),
       });
       return;
     }
 
-    // Build messages array from thread history or single message
-    const messages = await buildMessagesFromThread({
+    const messages = await buildMessagesFromSlack({
       client,
       channel,
       threadTs,
-      currentText: text,
       botUserId: (await client.auth.test()).user_id,
     });
-
-    console.log(messages);
-
-    const { text: replyText } = await generateText({
-      model,
+    await handleApprovalDecision({
       messages,
-      system: systemPrompt,
-    });
-
-    await say({
-      text: replyText,
-      ...(threadTs ? { thread_ts: threadTs } : {}),
-      blocks: [
-        {
-          type: 'section',
-          text: {
-            type: 'mrkdwn',
-            text: replyText,
-          },
-        },
-      ],
-    });
-  } finally {
-    await client.reactions.remove({
+      approvals: payload.approvals,
+      approved: true,
+      model,
+      tools,
+      logger,
+      post: async ({ text, blocks }) =>
+        client.chat.postMessage({
+          channel,
+          text,
+          ...(threadTs ? { thread_ts: threadTs } : {}),
+          ...(blocks ? { blocks } : {}),
+        }),
+      update: async (message) => {
+        await client.chat.update(message);
+      },
       channel,
-      name: 'eyes',
-      timestamp: messageTs,
     });
-  }
-}
-
-function isGenericMessageEvent(message: MessageEvent): message is GenericMessageEvent {
-  return message.type === 'message' && message.subtype === undefined;
-}
-
-async function buildMessagesFromThread({
-  client,
-  channel,
-  threadTs,
-  currentText,
-  botUserId,
-}: {
-  client: SlackHandlerContext['client'];
-  channel: string;
-  threadTs: string | undefined;
-  currentText: string;
-  botUserId: string | undefined;
-}): Promise<ModelMessage[]> {
-  // If not in a thread, just return the current message
-  if (!threadTs) {
-    return [{ role: 'user', content: currentText }];
-  }
-
-  // Fetch thread history
-  const result = await client.conversations.replies({
-    channel,
-    ts: threadTs,
   });
 
-  if (!result.messages || result.messages.length === 0) {
-    return [{ role: 'user', content: currentText }];
-  }
+  app.action('tool_approval_deny', async ({ ack, body, client, logger }) => {
+    await ack();
 
-  // Convert thread messages to LLM message format
-  const messages: ModelMessage[] = [];
-  for (const msg of result.messages) {
-    const blockText = extractTextFromBlocks(msg.blocks);
-    const baseText = (msg.text ?? '').trim();
-    const content = mergeMessageText(blockText, baseText);
-    if (!content) continue;
+    const actionValue =
+      'actions' in body && body.actions?.[0] && 'value' in body.actions[0]
+        ? body.actions[0].value
+        : undefined;
+    const channel = 'channel' in body ? body.channel?.id : undefined;
+    const message = 'message' in body ? body.message : undefined;
+    const threadTs = message?.thread_ts ?? undefined;
+    if (!channel) {
+      logger.warn('Approval action missing channel');
+      return;
+    }
 
-    // Determine if message is from the bot or a user
-    const isBot = msg.bot_id || msg.user === botUserId;
-    messages.push({
-      role: isBot ? 'assistant' : 'user',
-      content,
+    const payload =
+      (actionValue ? decodeApprovalPayload(actionValue) : null) ??
+      extractApprovalPayloadFromBlocks(message?.blocks);
+    if (!payload || payload.approvals.length === 0) {
+      await client.chat.postMessage({
+        channel,
+        text: 'No pending tool approvals found for this thread.',
+        ...(threadTs ? { thread_ts: threadTs } : {}),
+      });
+      return;
+    }
+
+    const messages = await buildMessagesFromSlack({
+      client,
+      channel,
+      threadTs,
+      botUserId: (await client.auth.test()).user_id,
     });
-  }
+    await handleApprovalDecision({
+      messages,
+      approvals: payload.approvals,
+      approved: false,
+      reason: 'Denied by user',
+      model,
+      tools,
+      logger,
+      post: async ({ text, blocks }) =>
+        client.chat.postMessage({
+          channel,
+          text,
+          ...(threadTs ? { thread_ts: threadTs } : {}),
+          ...(blocks ? { blocks } : {}),
+        }),
+      update: async (message) => {
+        await client.chat.update(message);
+      },
+      channel,
+    });
+  });
 
-  return messages;
+  return app;
 }
