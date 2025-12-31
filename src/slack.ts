@@ -3,6 +3,7 @@ import { LanguageModelV3 } from '@ai-sdk/provider';
 import { ModelMessage, generateId, generateText } from 'ai';
 import { AppMentionEvent, GenericMessageEvent, MessageEvent } from '@slack/types';
 import { SlackHandlerContext } from './types';
+import { mergeMessageText, extractTextFromBlocks } from './utils/slack_blocks';
 
 export async function startSlack(botToken: string, appToken: string, model: LanguageModelV3) {
   const app = new App({
@@ -143,13 +144,16 @@ async function buildMessagesFromThread({
   // Convert thread messages to LLM message format
   const messages: ModelMessage[] = [];
   for (const msg of result.messages) {
-    if (!msg.text) continue;
+    const blockText = extractTextFromBlocks(msg.blocks);
+    const baseText = (msg.text ?? '').trim();
+    const content = mergeMessageText(blockText, baseText);
+    if (!content) continue;
 
     // Determine if message is from the bot or a user
     const isBot = msg.bot_id || msg.user === botUserId;
     messages.push({
       role: isBot ? 'assistant' : 'user',
-      content: msg.text,
+      content,
     });
   }
 
