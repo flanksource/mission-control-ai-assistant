@@ -1,12 +1,14 @@
 {
-  "name": "slack-echo-bot",
+  "name": "slack-mission-control-bot",
   "version": "0.1.0",
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node src/index.js"
+    "start": "bun run src/index.ts"
   },
   "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.2",
+    "@ai-sdk/openai": "^3.0.2",
     "@slack/bolt": "^4.0.0",
     "ai": "^6.0.5",
     "dotenv": "^16.4.7"

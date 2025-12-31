@@ -1,6 +1,6 @@
 # Slack Echo Bot
 
-A minimal Slack bot that echoes direct messages (DMs) using Slack Bolt in Socket Mode.
+A minimal Slack bot that responds to direct messages (DMs) and mentions using Slack Bolt in Socket Mode, built with TypeScript and Bun.
 
 ## Setup
 
@@ -14,13 +14,16 @@ Copy `.env.example` to `.env` and fill in the tokens:
 ```
 SLACK_BOT_TOKEN=xoxb-...
 SLACK_APP_TOKEN=xapp-...
+ANTHROPIC_API_KEY=...
+OPENAI_API_KEY=...
+LLM_MODEL=claude-haiku-4-5
 ```
 
 ## Run
 
 ```
-npm install
-npm start
+bun install
+bun start
 ```
 
-The bot responds to direct messages (channel type `im`) and mentions in channels.
+The bot responds to direct messages (channel type `im`) and mentions in channels using Anthropic or OpenAI via Vercel AI SDK.
