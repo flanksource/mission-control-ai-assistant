@@ -1,0 +1,14 @@
+{
+  "name": "slack-echo-bot",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "@slack/bolt": "^4.0.0",
+    "ai": "^6.0.5",
+    "dotenv": "^16.4.7"
+  }
+}
