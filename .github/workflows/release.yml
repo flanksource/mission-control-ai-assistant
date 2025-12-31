@@ -20,33 +20,19 @@ jobs:
   semantic-release:
     runs-on: ubuntu-latest
     outputs:
-      new_release_published: ${{ steps.semantic.outputs.new_release_published }}
-      new_release_version: ${{ steps.semantic.outputs.new_release_version }}
+      release-version: ${{ steps.semantic.outputs.release-version }}
+      new-release-published: ${{ steps.semantic.outputs.new-release-published }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-          persist-credentials: false
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 'lts/*'
-
-      - name: Install dependencies
-        run: npm install -g semantic-release @semantic-release/git @semantic-release/changelog @semantic-release/github
-
-      - name: Release
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+      - uses: codfish/semantic-release-action@6c65402abb31a48c3f7396d7d099da015be67c2b # v4.0.1
         id: semantic
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx semantic-release
 
   build-image:
     needs: semantic-release
-    if: needs.semantic-release.outputs.new_release_published == 'true'
+    if: needs.semantic-release.outputs.new-release-published == 'true'
     runs-on: ubuntu-latest
 
     steps:
@@ -69,8 +55,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=semver,pattern={{version}},value=${{ needs.semantic-release.outputs.new_release_version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.semantic-release.outputs.new_release_version }}
+            type=semver,pattern={{version}},value=${{ needs.semantic-release.outputs.release-version }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ needs.semantic-release.outputs.release-version }}
             type=raw,value=latest
 
       - name: Build and push Docker image
