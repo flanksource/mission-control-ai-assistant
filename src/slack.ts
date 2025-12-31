@@ -1,11 +1,16 @@
-import { App } from '@slack/bolt';
+import { App, StringIndexed } from '@slack/bolt';
 import { LanguageModelV3 } from '@ai-sdk/provider';
-import { ModelMessage, generateId, generateText } from 'ai';
+import { ModelMessage, generateId, generateText, stepCountIs, type ToolSet } from 'ai';
 import { AppMentionEvent, GenericMessageEvent, MessageEvent } from '@slack/types';
 import { SlackHandlerContext } from './types';
 import { mergeMessageText, extractTextFromBlocks } from './utils/slack_blocks';
 
-export async function startSlack(botToken: string, appToken: string, model: LanguageModelV3) {
+export async function slackApp(
+  botToken: string,
+  appToken: string,
+  model: LanguageModelV3,
+  tools?: ToolSet,
+): Promise<App<StringIndexed>> {
   const app = new App({
     token: botToken,
     appToken: appToken,
@@ -25,16 +30,15 @@ export async function startSlack(botToken: string, appToken: string, model: Lang
       return;
     }
 
-    await respondWithLLM({ message, say, client, logger }, model);
+    await respondWithLLM({ message, say, client, logger }, model, tools);
   });
 
   app.event('app_mention', async ({ event, say, client, logger }) => {
     const message = event as AppMentionEvent;
-    await respondWithLLM({ message, say, client, logger }, model);
+    await respondWithLLM({ message, say, client, logger }, model, tools);
   });
 
-  await app.start();
-  console.log('Slack echo bot running in socket mode');
+  return app;
 }
 
 const systemPrompt = `You are a Slack bot assigned to work as a customer service for Flanksource's Mission Control customers.
@@ -46,6 +50,7 @@ const systemPrompt = `You are a Slack bot assigned to work as a customer service
 export async function respondWithLLM(
   { message, say, client, logger }: SlackHandlerContext,
   model: LanguageModelV3,
+  tools?: ToolSet,
 ) {
   const text = message.text ?? '';
   const { channel, user } = message;
@@ -79,12 +84,12 @@ export async function respondWithLLM(
       botUserId: (await client.auth.test()).user_id,
     });
 
-    console.log(messages);
-
     const { text: replyText } = await generateText({
       model,
       messages,
+      stopWhen: stepCountIs(20),
       system: systemPrompt,
+      ...(tools ? { tools } : {}),
     });
 
     await say({
