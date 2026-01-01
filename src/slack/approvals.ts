@@ -24,39 +24,6 @@ export const systemPrompt = `You are a Slack bot assigned to work as a customer 
   Format responses using Slack mrkdwn.
   "Avoid Markdown features Slack doesn't support, like # headers.`;
 
-export function parseApprovalDecision(text: string): { approved: boolean; reason?: string } | null {
-  const normalized = text.trim().toLowerCase();
-  if (!normalized) return null;
-
-  const approved =
-    normalized === 'approve' ||
-    normalized === 'approve all' ||
-    normalized === 'yes' ||
-    normalized === 'y' ||
-    normalized === 'ok' ||
-    normalized === 'okay' ||
-    normalized === 'allow' ||
-    normalized === 'run' ||
-    normalized === 'go ahead';
-  if (approved) {
-    return { approved: true };
-  }
-
-  const denied =
-    normalized === 'deny' ||
-    normalized === 'deny all' ||
-    normalized === 'no' ||
-    normalized === 'n' ||
-    normalized === 'reject' ||
-    normalized === 'stop' ||
-    normalized === 'cancel';
-  if (denied) {
-    return { approved: false, reason: text.trim() };
-  }
-
-  return null;
-}
-
 export function encodeApprovalPayload(approvals: PendingApproval[]): string {
   return JSON.stringify({ approvals } satisfies ApprovalPayload);
 }

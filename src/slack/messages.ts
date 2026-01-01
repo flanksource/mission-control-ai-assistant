@@ -15,23 +15,31 @@ export function isGenericMessageEvent(message: MessageEvent): message is Generic
   return message.type === 'message' && message.subtype === undefined;
 }
 
-export async function buildMessagesFromSlack({
+export async function buildConversationFromSlackMsgs({
   client,
   channel,
   threadTs,
   currentBlocks,
   botUserId,
-  includeCurrentBlocks = true,
 }: {
   client: SlackHandlerContext['client'];
   channel: string;
   threadTs: string | undefined;
   currentBlocks?: unknown[];
   botUserId: string | undefined;
-  includeCurrentBlocks?: boolean;
 }): Promise<ModelMessage[]> {
+  if (!threadTs && currentBlocks) {
+    const blockText = extractTextFromBlocks(currentBlocks);
+    if (blockText) {
+      return [{ role: 'user', content: blockText }];
+    }
+
+    return [];
+  }
+
   let slackMessages: Array<{ text?: string; blocks?: unknown[]; bot_id?: string; user?: string }> =
     [];
+
   if (threadTs) {
     const result = await client.conversations.replies({
       channel,
@@ -41,16 +49,6 @@ export async function buildMessagesFromSlack({
     slackMessages = result.messages ?? [];
   }
 
-  if (!slackMessages.length) {
-    if (includeCurrentBlocks && currentBlocks?.length) {
-      const blockText = extractTextFromBlocks(currentBlocks);
-      if (blockText) {
-        return [{ role: 'user', content: blockText }];
-      }
-    }
-    return [];
-  }
-
   const messages: ModelMessage[] = [];
   for (const msg of slackMessages) {
     const blockText = extractTextFromBlocks(msg.blocks || []);
@@ -58,14 +56,14 @@ export async function buildMessagesFromSlack({
     const content = mergeMessageText(blockText, baseText);
     if (!content) continue;
 
-    const isBot = msg.bot_id || msg.user === botUserId;
+    const isBot = msg.user === botUserId;
     messages.push({
       role: isBot ? 'assistant' : 'user',
       content,
     });
   }
 
-  if (includeCurrentBlocks && currentBlocks?.length) {
+  if (currentBlocks?.length) {
     const blockText = extractTextFromBlocks(currentBlocks);
     if (blockText) {
       const last = messages[messages.length - 1];

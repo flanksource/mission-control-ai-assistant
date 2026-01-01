@@ -1,17 +1,14 @@
 import { LanguageModelV3 } from '@ai-sdk/provider';
-import { generateId, generateText, stepCountIs, type ToolSet } from 'ai';
+import { generateText, stepCountIs, type ToolSet } from 'ai';
 import { SlackHandlerContext } from '../types';
 import { buildApprovalBlocks, buildTextBlocks, extractTextFromBlocks } from './blocks';
 import {
   collectToolApprovalRequests,
   encodeApprovalPayload,
-  findLatestApprovalPayload,
   formatApprovalPrompt,
-  handleApprovalDecision,
-  parseApprovalDecision,
   systemPrompt,
 } from './approvals';
-import { buildMessagesFromSlack, dropTrailingUserMessage } from './messages';
+import { buildConversationFromSlackMsgs } from './messages';
 import { collectToolCalls, logToolCalls, postWithToolStatus } from './tool_calls';
 
 export async function respondWithLLM(
@@ -19,17 +16,11 @@ export async function respondWithLLM(
   model: LanguageModelV3,
   tools?: ToolSet,
 ) {
-  const blocks = 'blocks' in message ? message.blocks ?? [] : [];
+  const blocks = 'blocks' in message ? (message.blocks ?? []) : [];
   const text = extractTextFromBlocks(blocks);
-    const { channel } = message;
-    const messageTs = message.ts;
-    const threadTs = 'thread_ts' in message ? message.thread_ts : undefined;
-
-  await client.reactions.add({
-    channel,
-    name: 'eyes',
-    timestamp: messageTs,
-  });
+  const { channel } = message;
+  const messageTs = message.ts;
+  const threadTs = 'thread_ts' in message ? message.thread_ts : undefined;
 
   try {
     if (!text.trim()) {
@@ -40,47 +31,12 @@ export async function respondWithLLM(
       return;
     }
 
-    const botUserId = (await client.auth.test()).user_id;
-    const decision = parseApprovalDecision(text);
-    if (decision) {
-      const payload = await findLatestApprovalPayload({ client, channel, threadTs });
-      if (payload) {
-        const messages = await buildMessagesFromSlack({
-          client,
-          channel,
-          threadTs,
-          botUserId,
-        });
-        const trimmedMessages = dropTrailingUserMessage(messages, text);
-        await handleApprovalDecision({
-          messages: trimmedMessages,
-          approvals: payload.approvals,
-          approved: decision.approved,
-          reason: decision.reason,
-          model,
-          tools,
-          logger,
-          post: async ({ text: responseText, blocks }) =>
-            (await say({
-              text: responseText,
-              ...(threadTs ? { thread_ts: threadTs } : {}),
-              ...(blocks ? { blocks } : {}),
-            })) as { ts?: string; channel?: string } | undefined,
-          update: async (response) => {
-            await client.chat.update(response);
-          },
-          channel,
-        });
-        return;
-      }
-    }
-
-    const messages = await buildMessagesFromSlack({
+    const messages = await buildConversationFromSlackMsgs({
       client,
       channel,
       threadTs,
       currentBlocks: blocks,
-      botUserId,
+      botUserId: (await client.auth.test()).user_id,
     });
     console.log({ messages });
 

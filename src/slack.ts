@@ -3,7 +3,7 @@ import { LanguageModelV3 } from '@ai-sdk/provider';
 import { type ToolSet } from 'ai';
 import { AppMentionEvent } from '@slack/types';
 import { respondWithLLM } from './slack/respond';
-import { isGenericMessageEvent, buildMessagesFromSlack } from './slack/messages';
+import { isGenericMessageEvent, buildConversationFromSlackMsgs } from './slack/messages';
 import {
   decodeApprovalPayload,
   extractApprovalPayloadFromBlocks,
@@ -37,6 +37,7 @@ export async function slackApp(
     socketMode: true,
     logLevel: getLogLevel(process.env.LOG_LEVEL),
   });
+  
   app.use(async ({ body, logger, next }) => {
     console.log(JSON.stringify(body, null, 2));
     if ('event' in body) {
@@ -69,10 +70,22 @@ export async function slackApp(
       return;
     }
 
+    await client.reactions.add({
+      channel: message.channel,
+      name: 'eyes',
+      timestamp: message.ts,
+    });
+
     await respondWithLLM({ message, say, client, logger }, model, tools);
   });
 
   app.event('app_mention', async ({ event, say, client, logger }) => {
+    await client.reactions.add({
+      channel: event.channel,
+      name: 'eyes',
+      timestamp: event.ts,
+    });
+
     const message = event as AppMentionEvent;
     await respondWithLLM({ message, say, client, logger }, model, tools);
   });
@@ -104,7 +117,7 @@ export async function slackApp(
       return;
     }
 
-    const messages = await buildMessagesFromSlack({
+    const messages = await buildConversationFromSlackMsgs({
       client,
       channel,
       threadTs,
@@ -158,7 +171,7 @@ export async function slackApp(
       return;
     }
 
-    const messages = await buildMessagesFromSlack({
+    const messages = await buildConversationFromSlackMsgs({
       client,
       channel,
       threadTs,
