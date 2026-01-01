@@ -14,18 +14,27 @@ import { generateText, ModelMessage, stepCountIs, type ToolSet } from 'ai';
 import { ToolApprovalRequest, ToolCallPart } from '@ai-sdk/provider-utils';
 import {
   buildApprovalBlocks,
-  appendToolStatusToBlocks,
   buildTextBlocks,
   mergeMessageText,
   extractTextFromBlocks,
 } from './blocks';
-import {
-  appendToolStatusToText,
-  collectToolCalls,
-  formatToolCallStatus,
-  getLogLevel,
-} from './utils';
 import { systemPrompt } from '../llm/llm';
+import { LogLevel } from '@slack/bolt';
+
+export function getLogLevel(level?: string): LogLevel {
+  switch (level?.toUpperCase()) {
+    case 'DEBUG':
+      return LogLevel.DEBUG;
+    case 'INFO':
+      return LogLevel.INFO;
+    case 'WARN':
+      return LogLevel.WARN;
+    case 'ERROR':
+      return LogLevel.ERROR;
+    default:
+      return LogLevel.INFO;
+  }
+}
 
 export async function slackApp(
   botToken: string,
@@ -183,6 +192,10 @@ async function handleToolApprovalAction({
     reason,
     model,
     tools,
+    client,
+    channel,
+    threadTs,
+    logger,
     post: async ({ text, blocks }) =>
       client.chat.postMessage({
         channel,
@@ -200,6 +213,10 @@ async function handleApprovalDecision({
   reason,
   model,
   tools,
+  client,
+  channel,
+  threadTs,
+  logger,
   post,
 }: {
   messages: ModelMessage[];
@@ -208,6 +225,10 @@ async function handleApprovalDecision({
   reason?: string;
   model: LanguageModelV3;
   tools?: ToolSet;
+  client: WebClient;
+  channel: string;
+  threadTs?: string;
+  logger: Logger;
   post: (message: {
     text: string;
     blocks?: unknown[];
@@ -242,21 +263,35 @@ async function handleApprovalDecision({
     },
   ];
 
-  const result = await generateText({
-    model,
-    messages: [...messages, ...toolApprovalMessages],
-    stopWhen: stepCountIs(20),
-    system: systemPrompt,
-    ...(tools ? { tools } : {}),
+  const stepReporter = await createStepProgressReporter({
+    client,
+    channel,
+    threadTs,
+    logger,
   });
 
-  const response = renderToolResponse({
-    responseMessages: result.response.messages ?? [],
-    replyText: result.text ?? '',
-    includeReplyTextWithApprovals: false,
-  });
+  try {
+    const result = await generateText({
+      model,
+      messages: [...messages, ...toolApprovalMessages],
+      stopWhen: stepCountIs(20),
+      system: systemPrompt,
+      onStepFinish: stepReporter.onStepFinish,
+      ...(tools ? { tools } : {}),
+    });
 
-  await post({ text: response.text, blocks: response.blocks });
+    const response = renderToolResponse({
+      responseMessages: result.response.messages ?? [],
+      replyText: result.text ?? '',
+      includeReplyTextWithApprovals: false,
+    });
+
+    await post({ text: response.text, blocks: response.blocks });
+    await stepReporter.finalize('done');
+  } catch (error) {
+    await stepReporter.finalize('error');
+    throw error;
+  }
 }
 
 interface SlackHandlerContext {
@@ -279,10 +314,11 @@ export async function respondWithLLM(
   const threadTs = 'thread_ts' in message ? message.thread_ts : undefined;
 
   try {
-    client.reactions.add({
-      channel: message.channel,
-      name: 'eyes',
-      timestamp: message.ts,
+    const stepReporter = await createStepProgressReporter({
+      client,
+      channel,
+      threadTs,
+      logger,
     });
 
     const messages: ModelMessage[] = await buildConveration({
@@ -293,31 +329,33 @@ export async function respondWithLLM(
       text: message.text || text,
     });
 
-    const result = await generateText({
-      model,
-      messages,
-      stopWhen: stepCountIs(20),
-      system: systemPrompt,
-      ...(tools ? { tools } : {}),
-    });
+    try {
+      const result = await generateText({
+        model,
+        messages,
+        stopWhen: stepCountIs(20),
+        system: systemPrompt,
+        onStepFinish: stepReporter.onStepFinish,
+        ...(tools ? { tools } : {}),
+      });
 
-    const response = renderToolResponse({
-      responseMessages: result.response.messages ?? [],
-      replyText: result.text?.trim() ?? '',
-      includeReplyTextWithApprovals: true,
-    });
+      const response = renderToolResponse({
+        responseMessages: result.response.messages ?? [],
+        replyText: result.text?.trim() ?? '',
+        includeReplyTextWithApprovals: true,
+      });
 
-    await say({
-      text: response.text,
-      ...(threadTs ? { thread_ts: threadTs } : {}),
-      ...(response.blocks ? { blocks: response.blocks } : {}),
-    });
+      await say({
+        text: response.text,
+        ...(threadTs ? { thread_ts: threadTs } : {}),
+        ...(response.blocks ? { blocks: response.blocks } : {}),
+      });
+      await stepReporter.finalize('done');
+    } catch (error) {
+      await stepReporter.finalize('error');
+      throw error;
+    }
   } finally {
-    await client.reactions.remove({
-      channel,
-      name: 'eyes',
-      timestamp: messageTs,
-    });
   }
 }
 
@@ -398,8 +436,6 @@ function renderToolResponse({
   replyText: string;
   includeReplyTextWithApprovals: boolean;
 }): { text: string; blocks?: unknown[] } {
-  const toolCalls = collectToolCalls(responseMessages);
-  const status = toolCalls.length > 0 ? formatToolCallStatus(toolCalls) : '';
   const pendingApprovals = collectToolApprovalRequests(responseMessages);
   if (pendingApprovals.length > 0) {
     const prompt = formatApprovalPrompt(pendingApprovals);
@@ -407,15 +443,156 @@ function renderToolResponse({
     const combinedText =
       includeReplyTextWithApprovals && replyText ? `${replyText}\n\n${prompt}` : prompt;
     const approvalBlocks = buildApprovalBlocks(combinedText, payloadValue);
-    const finalText = status ? appendToolStatusToText(combinedText, status) : combinedText;
-    const finalBlocks = status ? appendToolStatusToBlocks(approvalBlocks, status) : approvalBlocks;
-
-    return { text: finalText, blocks: finalBlocks };
+    return { text: combinedText, blocks: approvalBlocks };
   }
 
   const replyBlocks = buildTextBlocks(replyText);
-  const finalText = status ? appendToolStatusToText(replyText, status) : replyText;
-  const finalBlocks = status ? appendToolStatusToBlocks(replyBlocks, status) : replyBlocks;
+  return { text: replyText, blocks: replyBlocks };
+}
 
-  return { text: finalText, blocks: finalBlocks };
+async function createStepProgressReporter({
+  client,
+  channel,
+  threadTs,
+  logger,
+}: {
+  client: WebClient;
+  channel: string;
+  threadTs?: string;
+  logger: Logger;
+}): Promise<{
+  onStepFinish: (stepResult: {
+    toolCalls: Array<{ toolName: string }>;
+    toolResults: Array<{ toolName: string }>;
+  }) => Promise<void>;
+  finalize: (status: 'done' | 'error') => Promise<void>;
+}> {
+  const toolLines: string[] = [];
+  let stepCount = 0;
+  let progressMessageTs: string | undefined;
+  const maxVisibleSteps = 12;
+
+  const buildProgressText = (status?: 'done' | 'error') => {
+    if (toolLines.length === 0) {
+      const base = 'Progress updates:';
+      if (status === 'done') {
+        return `${base}\n\nDone.`;
+      }
+      if (status === 'error') {
+        return `${base}\n\nStopped due to an error.`;
+      }
+      return base;
+    }
+
+    const body = toolLines.map((line) => `- ${line}`).join('\n');
+    if (status === 'done') {
+      return `Progress updates:\n${body}\n\nDone.`;
+    }
+    if (status === 'error') {
+      return `Progress updates:\n${body}\n\nStopped due to an error.`;
+    }
+    return `Progress updates:\n${body}`;
+  };
+
+  const buildProgressBlocks = (status?: 'done' | 'error') => {
+    const statusLine =
+      status === 'done'
+        ? ':white_check_mark: Done'
+        : status === 'error'
+          ? ':warning: Stopped due to an error'
+          : '🗯️ Thinking ...';
+    const visibleSteps = toolLines.slice(-maxVisibleSteps);
+    const blocks: any[] = [
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: `*${statusLine}*`,
+        },
+      },
+    ];
+
+    if (visibleSteps.length > 0) {
+      blocks.push({
+        type: 'rich_text',
+        elements: [
+          {
+            type: 'rich_text_list',
+            style: 'bullet',
+            elements: visibleSteps.map((line) => ({
+              type: 'rich_text_section',
+              elements: [
+                {
+                  type: 'text',
+                  text: line,
+                },
+              ],
+            })),
+          },
+        ],
+      });
+    }
+
+    return blocks;
+  };
+
+  const updateProgressMessage = async (status?: 'done' | 'error') => {
+    if (!progressMessageTs) {
+      return;
+    }
+    await client.chat.update({
+      channel,
+      ts: progressMessageTs,
+      text: buildProgressText(status),
+      blocks: buildProgressBlocks(status),
+    });
+  };
+
+  try {
+    const progressMessage = await client.chat.postMessage({
+      channel,
+      text: buildProgressText(),
+      blocks: buildProgressBlocks(),
+      ...(threadTs ? { thread_ts: threadTs } : {}),
+    });
+    progressMessageTs = progressMessage.ts;
+  } catch (error) {
+    logger.warn({ error }, 'Failed to post progress message');
+  }
+
+  return {
+    onStepFinish: async (stepResult) => {
+      stepCount += 1;
+      const toolCallNames = Array.from(new Set(stepResult.toolCalls.map((call) => call.toolName)));
+
+      if (toolCallNames.length === 0) {
+        return;
+      }
+
+      for (const toolName of toolCallNames) {
+        toolLines.push(`tool: ${toolName}()`);
+      }
+
+      updateProgressMessage().catch((error) => {
+        logger.warn({ error }, 'Failed to update progress message');
+      });
+    },
+    finalize: async (status) => {
+      try {
+        if (!progressMessageTs) {
+          return;
+        }
+        if (toolLines.length === 0 || stepCount <= 1) {
+          await client.chat.delete({
+            channel,
+            ts: progressMessageTs,
+          });
+          return;
+        }
+        await updateProgressMessage(status);
+      } catch (error) {
+        logger.warn({ error }, 'Failed to finalize progress message');
+      }
+    },
+  };
 }

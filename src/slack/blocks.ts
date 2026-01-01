@@ -49,32 +49,6 @@ export function buildApprovalBlocks(text: string, payloadValue: string) {
   ];
 }
 
-export function appendToolStatusToBlocks(blocks: unknown[] | undefined, status: string): unknown[] {
-  const statusBlock = {
-    type: 'context',
-    elements: [
-      {
-        type: 'mrkdwn',
-        text: `_${status}_`,
-      },
-    ],
-  };
-
-  if (!blocks || blocks.length === 0) {
-    return buildTextBlocks(`_${status}_`);
-  }
-
-  const updatedBlocks = [...blocks];
-  const lastBlock = updatedBlocks[updatedBlocks.length - 1] as { type?: string } | undefined;
-  if (lastBlock?.type === 'actions') {
-    updatedBlocks.splice(updatedBlocks.length - 1, 0, statusBlock);
-    return updatedBlocks;
-  }
-
-  updatedBlocks.push(statusBlock);
-  return updatedBlocks;
-}
-
 export function mergeMessageText(blockText: string, baseText: string): string {
   if (blockText && baseText && blockText !== baseText) {
     if (blockText.includes(baseText)) {
@@ -162,6 +136,19 @@ function extractRichText(elements: unknown, botUserId?: string): string {
         const section = element as { elements?: unknown };
         const sectionText = extractRichText(section.elements, botUserId);
         if (sectionText) parts.push(sectionText);
+        break;
+      }
+      case 'rich_text_list': {
+        const list = element as { elements?: unknown };
+        if (Array.isArray(list.elements)) {
+          const items: string[] = [];
+          for (const item of list.elements) {
+            if (!item || typeof item !== 'object') continue;
+            const itemText = extractRichText((item as { elements?: unknown }).elements, botUserId);
+            if (itemText) items.push(`- ${itemText}`);
+          }
+          if (items.length > 0) parts.push(items.join('\n'));
+        }
         break;
       }
 
