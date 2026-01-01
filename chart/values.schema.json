@@ -1,0 +1,210 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "additionalProperties": false,
+  "properties": {
+    "config": {
+      "additionalProperties": false,
+      "description": "Non-secret configuration provided as environment variables.",
+      "properties": {
+        "llmModel": {
+          "default": "claude-haiku-4-5",
+          "description": "LLM model selection; defaults to claude-haiku-4-5.",
+          "required": [],
+          "title": "llmModel"
+        },
+        "logLevel": {
+          "default": "INFO",
+          "description": "Logging level (DEBUG, INFO, WARN, ERROR).",
+          "required": [],
+          "title": "logLevel"
+        }
+      },
+      "required": [],
+      "title": "config"
+    },
+    "global": {
+      "description": "Global values are values that can be accessed from any chart or subchart by exactly the same name.",
+      "required": [],
+      "title": "global",
+      "type": "object"
+    },
+    "image": {
+      "additionalProperties": false,
+      "description": "Image settings for the deployment.",
+      "properties": {
+        "pullPolicy": {
+          "default": "IfNotPresent",
+          "description": "Image pull policy.",
+          "required": [],
+          "title": "pullPolicy"
+        },
+        "repository": {
+          "default": "ghcr.io/flanksource/mission-control-ai-assistant",
+          "description": "Image repository for the deployment.",
+          "required": [],
+          "title": "repository"
+        },
+        "tag": {
+          "default": "1.0.4",
+          "description": "Image tag for the deployment.",
+          "required": [],
+          "title": "tag"
+        }
+      },
+      "required": [
+        "repository",
+        "tag"
+      ],
+      "title": "image"
+    },
+    "resources": {
+      "additionalProperties": false,
+      "description": "Pod resource requests/limits.",
+      "properties": {
+        "limits": {
+          "additionalProperties": false,
+          "properties": {
+            "memory": {
+              "default": "200Mi",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "required": [
+            "memory"
+          ],
+          "title": "limits",
+          "type": "object"
+        },
+        "requests": {
+          "additionalProperties": false,
+          "properties": {
+            "cpu": {
+              "default": "5m",
+              "title": "cpu",
+              "type": "string"
+            },
+            "memory": {
+              "default": "50Mi",
+              "title": "memory",
+              "type": "string"
+            }
+          },
+          "required": [
+            "cpu",
+            "memory"
+          ],
+          "title": "requests",
+          "type": "object"
+        }
+      },
+      "required": [
+        "requests",
+        "limits"
+      ],
+      "title": "resources"
+    },
+    "secrets": {
+      "additionalProperties": false,
+      "description": "Secret references for Slack/LLM/MCP credentials.\nEach \"name\" points to an existing Kubernetes Secret.",
+      "properties": {
+        "llm": {
+          "additionalProperties": false,
+          "properties": {
+            "anthropicKey": {
+              "default": "ANTHROPIC_API_KEY",
+              "description": "Key name for ANTHROPIC_API_KEY in the secret.",
+              "required": [],
+              "title": "anthropicKey"
+            },
+            "name": {
+              "default": "",
+              "description": "Secret containing ANTHROPIC_API_KEY and OPENAI_API_KEY keys.",
+              "required": [],
+              "title": "name"
+            },
+            "openaiKey": {
+              "default": "OPENAI_API_KEY",
+              "description": "Key name for OPENAI_API_KEY in the secret.",
+              "required": [],
+              "title": "openaiKey"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "llm",
+          "type": "object"
+        },
+        "mcp": {
+          "additionalProperties": false,
+          "properties": {
+            "bearerTokenKey": {
+              "default": "MCP_BEARER_TOKEN",
+              "description": "Key name for MCP_BEARER_TOKEN in the secret.",
+              "required": [],
+              "title": "bearerTokenKey"
+            },
+            "name": {
+              "default": "",
+              "description": "Secret containing MCP_URL and MCP_BEARER_TOKEN keys.",
+              "required": [],
+              "title": "name"
+            },
+            "urlKey": {
+              "default": "MCP_URL",
+              "description": "Key name for MCP_URL in the secret.",
+              "required": [],
+              "title": "urlKey"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "mcp",
+          "type": "object"
+        },
+        "slack": {
+          "additionalProperties": false,
+          "properties": {
+            "appTokenKey": {
+              "default": "SLACK_APP_TOKEN",
+              "description": "Key name for SLACK_APP_TOKEN in the secret.",
+              "required": [],
+              "title": "appTokenKey"
+            },
+            "botTokenKey": {
+              "default": "SLACK_BOT_TOKEN",
+              "description": "Key name for SLACK_BOT_TOKEN in the secret.",
+              "required": [],
+              "title": "botTokenKey"
+            },
+            "name": {
+              "default": "",
+              "description": "Secret containing SLACK_BOT_TOKEN and SLACK_APP_TOKEN keys.",
+              "required": [],
+              "title": "name"
+            }
+          },
+          "required": [
+            "name"
+          ],
+          "title": "slack",
+          "type": "object"
+        }
+      },
+      "required": [
+        "slack",
+        "llm",
+        "mcp"
+      ],
+      "title": "secrets"
+    }
+  },
+  "required": [
+    "image",
+    "config",
+    "secrets"
+  ],
+  "type": "object"
+}

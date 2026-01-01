@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mission-control-ai-assistant.fullname" . }}
+  labels:
+    {{- include "mission-control-ai-assistant.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "mission-control-ai-assistant.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "mission-control-ai-assistant.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: mission-control-ai-assistant
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: LLM_MODEL
+              value: {{ .Values.config.llmModel | quote }}
+            - name: LOG_LEVEL
+              value: {{ .Values.config.logLevel | quote }}
+            {{- if .Values.secrets.slack.name }}
+            - name: SLACK_BOT_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.slack.name }}
+                  key: {{ .Values.secrets.slack.botTokenKey }}
+            - name: SLACK_APP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.slack.name }}
+                  key: {{ .Values.secrets.slack.appTokenKey }}
+            {{- end }}
+            {{- if .Values.secrets.llm.name }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.llm.name }}
+                  key: {{ .Values.secrets.llm.anthropicKey }}
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.llm.name }}
+                  key: {{ .Values.secrets.llm.openaiKey }}
+            {{- end }}
+            {{- if .Values.secrets.mcp.name }}
+            - name: MCP_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.mcp.name }}
+                  key: {{ .Values.secrets.mcp.urlKey }}
+            - name: MCP_BEARER_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.mcp.name }}
+                  key: {{ .Values.secrets.mcp.bearerTokenKey }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
