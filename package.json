@@ -6,7 +6,8 @@
   "scripts": {
     "start": "bun run src/index.ts",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "test": "bun test"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.2",

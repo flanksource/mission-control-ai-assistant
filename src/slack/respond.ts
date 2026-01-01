@@ -1,7 +1,7 @@
 import { LanguageModelV3 } from '@ai-sdk/provider';
 import { generateId, generateText, stepCountIs, type ToolSet } from 'ai';
 import { SlackHandlerContext } from '../types';
-import { buildApprovalBlocks, buildTextBlocks } from './blocks';
+import { buildApprovalBlocks, buildTextBlocks, extractTextFromBlocks } from './blocks';
 import {
   collectToolApprovalRequests,
   encodeApprovalPayload,
@@ -19,13 +19,11 @@ export async function respondWithLLM(
   model: LanguageModelV3,
   tools?: ToolSet,
 ) {
-  const text = message.text ?? '';
-  const { channel, user } = message;
-  const messageTs = message.ts;
-  const threadTs = 'thread_ts' in message ? message.thread_ts : undefined;
-  const requestId = generateId();
-
-  logger.info({ requestId, channel, user }, 'New message');
+  const blocks = 'blocks' in message ? message.blocks ?? [] : [];
+  const text = extractTextFromBlocks(blocks);
+    const { channel } = message;
+    const messageTs = message.ts;
+    const threadTs = 'thread_ts' in message ? message.thread_ts : undefined;
 
   await client.reactions.add({
     channel,
@@ -81,9 +79,10 @@ export async function respondWithLLM(
       client,
       channel,
       threadTs,
-      currentText: text,
+      currentBlocks: blocks,
       botUserId,
     });
+    console.log({ messages });
 
     const result = await generateText({
       model,

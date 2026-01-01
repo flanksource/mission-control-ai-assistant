@@ -48,6 +48,9 @@ OPENAI_API_KEY=sk-...
 # Optional: Model selection (defaults to claude-haiku-4-5)
 LLM_MODEL=claude-haiku-4-5
 
+# Optional: Logging level (DEBUG, INFO, WARN, ERROR)
+LOG_LEVEL=INFO
+
 # Optional: MCP server integration
 MCP_URL=http://localhost:8080/mcp
 MCP_BEARER_TOKEN=your-bearer-token
@@ -69,6 +72,22 @@ The bot will connect to Slack via Socket Mode and respond to:
 
 - Direct messages sent to the bot
 - @mentions in channels and groups
+
+## Logging
+
+Control log verbosity with the `LOG_LEVEL` environment variable:
+
+```bash
+LOG_LEVEL=DEBUG bun start
+```
+
+Available log levels (from most to least verbose):
+- `DEBUG` - Detailed debug information
+- `INFO` - General informational messages (default)
+- `WARN` - Warning messages only
+- `ERROR` - Error messages only
+
+The log level can be set in your `.env` file or passed as an environment variable when starting the bot.
 
 ## MCP Integration
 

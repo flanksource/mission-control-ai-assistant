@@ -1,4 +1,4 @@
-import { App, StringIndexed } from '@slack/bolt';
+import { App, LogLevel, StringIndexed } from '@slack/bolt';
 import { LanguageModelV3 } from '@ai-sdk/provider';
 import { type ToolSet } from 'ai';
 import { AppMentionEvent } from '@slack/types';
@@ -10,6 +10,21 @@ import {
   handleApprovalDecision,
 } from './slack/approvals';
 
+function getLogLevel(level?: string): LogLevel {
+  switch (level?.toUpperCase()) {
+    case 'DEBUG':
+      return LogLevel.DEBUG;
+    case 'INFO':
+      return LogLevel.INFO;
+    case 'WARN':
+      return LogLevel.WARN;
+    case 'ERROR':
+      return LogLevel.ERROR;
+    default:
+      return LogLevel.INFO;
+  }
+}
+
 export async function slackApp(
   botToken: string,
   appToken: string,
@@ -20,6 +35,25 @@ export async function slackApp(
     token: botToken,
     appToken: appToken,
     socketMode: true,
+    logLevel: getLogLevel(process.env.LOG_LEVEL),
+  });
+  app.use(async ({ body, logger, next }) => {
+    console.log(JSON.stringify(body, null, 2));
+    if ('event' in body) {
+      const eventLog: Record<string, any> = {
+        type: body.event.type,
+        text: body.event.text,
+      };
+
+      if (body.event.channel_type) {
+        eventLog['channel_type'] = body.event.channel_type;
+        eventLog['thread_ts'] = body.event.thread_ts;
+      }
+
+      logger.info(`New event ${JSON.stringify(eventLog)}`);
+    }
+
+    await next();
   });
 
   app.message(async ({ message, say, client, logger }) => {
