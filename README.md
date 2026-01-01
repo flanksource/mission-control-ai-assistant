@@ -82,6 +82,7 @@ LOG_LEVEL=DEBUG bun start
 ```
 
 Available log levels (from most to least verbose):
+
 - `DEBUG` - Detailed debug information
 - `INFO` - General informational messages (default)
 - `WARN` - Warning messages only

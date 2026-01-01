@@ -1,9 +1,4 @@
-import { LanguageModelV3 } from '@ai-sdk/provider';
-import { ToolApprovalRequest, ToolCallPart } from '@ai-sdk/provider-utils';
-import { ModelMessage, generateText, stepCountIs, type ToolSet } from 'ai';
-import { buildApprovalBlocks, buildTextBlocks } from './blocks';
-import { collectToolCalls, logToolCalls, postWithToolStatus } from './tool_calls';
-import { Logger, WebClient } from '@slack/web-api';
+import { ModelMessage } from 'ai';
 
 export type PendingApproval = {
   approvalId: string;
@@ -17,12 +12,6 @@ export type PendingApproval = {
 export type ApprovalPayload = {
   approvals: PendingApproval[];
 };
-
-export const systemPrompt = `You are a Slack bot assigned to work as a customer service for Flanksource's Mission Control customers.
-  Flanksource Mission Control is an Internal Developer Platform that helps teams improve developer productivity and operational resilience
-
-  Format responses using Slack mrkdwn.
-  "Avoid Markdown features Slack doesn't support, like # headers.`;
 
 export function encodeApprovalPayload(approvals: PendingApproval[]): string {
   return JSON.stringify({ approvals } satisfies ApprovalPayload);
@@ -38,15 +27,6 @@ export function decodeApprovalPayload(value: string): ApprovalPayload | null {
   } catch {
     return null;
   }
-}
-
-export function formatApprovalPrompt(pending: PendingApproval[]): string {
-  const lines = pending.map((approval) => {
-    const input = safeStringify(approval.toolCall.input);
-    return `\`${approval.toolCall.toolName}\`\n\`\`\`${input}\`\`\``;
-  });
-
-  return ['Tool approval required:', ...lines].join('\n');
 }
 
 export function collectToolApprovalRequests(messages: ModelMessage[]): PendingApproval[] {
@@ -119,107 +99,11 @@ export function extractApprovalPayloadFromBlocks(
   return null;
 }
 
-export async function handleApprovalDecision({
-  messages,
-  approvals,
-  approved,
-  reason,
-  model,
-  tools,
-  logger,
-  post,
-  update,
-  channel,
-}: {
-  messages: ModelMessage[];
-  approvals: PendingApproval[];
-  approved: boolean;
-  reason?: string;
-  model: LanguageModelV3;
-  tools?: ToolSet;
-  logger: Logger;
-  post: (message: {
-    text: string;
-    blocks?: unknown[];
-  }) => Promise<{ ts?: string; channel?: string } | undefined>;
-  update: (message: {
-    channel: string;
-    ts: string;
-    text: string;
-    blocks?: unknown[];
-  }) => Promise<void>;
-  channel: string;
-}) {
-  const approvalContent: Array<ToolCallPart | ToolApprovalRequest> = approvals.flatMap(
-    (approval) => [
-      {
-        type: 'tool-call',
-        toolCallId: approval.toolCall.toolCallId,
-        toolName: approval.toolCall.toolName,
-        input: approval.toolCall.input,
-      },
-      {
-        type: 'tool-approval-request',
-        approvalId: approval.approvalId,
-        toolCallId: approval.toolCall.toolCallId,
-      },
-    ],
-  );
-
-  const toolApprovalMessages: ModelMessage[] = [
-    { role: 'assistant', content: approvalContent },
-    {
-      role: 'tool',
-      content: approvals.map((approval) => ({
-        type: 'tool-approval-response',
-        approvalId: approval.approvalId,
-        approved,
-        reason,
-      })),
-    },
-  ];
-
-  const result = await generateText({
-    model,
-    messages: [...messages, ...toolApprovalMessages],
-    stopWhen: stepCountIs(20),
-    system: systemPrompt,
-    ...(tools ? { tools } : {}),
+export function formatApprovalPrompt(pending: PendingApproval[]): string {
+  const lines = pending.map((approval) => {
+    const input = JSON.stringify(approval.toolCall.input, null, 2);
+    return `\`${approval.toolCall.toolName}\`\n\`\`\`${input}\`\`\``;
   });
 
-  const responseMessages = result.response.messages ?? [];
-  logToolCalls(responseMessages, logger);
-  const toolCalls = collectToolCalls(responseMessages);
-  const pendingApprovals = collectToolApprovalRequests(responseMessages);
-  if (pendingApprovals.length > 0) {
-    const prompt = formatApprovalPrompt(pendingApprovals);
-    const payloadValue = encodeApprovalPayload(pendingApprovals);
-    await postWithToolStatus({
-      post,
-      update,
-      channel,
-      text: prompt,
-      blocks: buildApprovalBlocks(prompt, payloadValue),
-      toolCalls,
-    });
-    return;
-  }
-
-  const replyText = result.text ?? '';
-  await postWithToolStatus({
-    post,
-    update,
-    channel,
-    text: replyText,
-    blocks: buildTextBlocks(replyText),
-    toolCalls,
-  });
-}
-
-function safeStringify(value: unknown): string {
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return String(value);
-  }
+  return ['Tool approval required:', ...lines].join('\n');
 }
