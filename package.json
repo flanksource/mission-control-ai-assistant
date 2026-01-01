@@ -7,7 +7,8 @@
     "start": "bun run src/index.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "bun test"
+    "test": "bun test",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.2",

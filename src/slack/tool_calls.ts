@@ -1,6 +1,6 @@
 import { ModelMessage } from 'ai';
 import { ToolCallPart } from '@ai-sdk/provider-utils';
-import { SlackHandlerContext } from '../types';
+import { SlackHandlerContext } from '../slack';
 import { appendToolStatusToBlocks } from './blocks';
 
 export function logToolCalls(messages: ModelMessage[], logger: SlackHandlerContext['logger']) {

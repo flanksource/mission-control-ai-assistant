@@ -1,9 +1,9 @@
 import { LanguageModelV3 } from '@ai-sdk/provider';
 import { ToolApprovalRequest, ToolCallPart } from '@ai-sdk/provider-utils';
 import { ModelMessage, generateText, stepCountIs, type ToolSet } from 'ai';
-import { SlackHandlerContext } from '../types';
 import { buildApprovalBlocks, buildTextBlocks } from './blocks';
 import { collectToolCalls, logToolCalls, postWithToolStatus } from './tool_calls';
+import { Logger, WebClient } from '@slack/web-api';
 
 export type PendingApproval = {
   approvalId: string;
@@ -87,7 +87,9 @@ export function collectToolApprovalRequests(messages: ModelMessage[]): PendingAp
   return approvals;
 }
 
-export function extractApprovalPayloadFromBlocks(blocks: unknown[] | undefined): ApprovalPayload | null {
+export function extractApprovalPayloadFromBlocks(
+  blocks: unknown[] | undefined,
+): ApprovalPayload | null {
   if (!blocks) return null;
   for (const block of blocks) {
     if (typeof block !== 'object' || block === null) {
@@ -117,41 +119,6 @@ export function extractApprovalPayloadFromBlocks(blocks: unknown[] | undefined):
   return null;
 }
 
-export async function findLatestApprovalPayload({
-  client,
-  channel,
-  threadTs,
-}: {
-  client: SlackHandlerContext['client'];
-  channel: string;
-  threadTs: string | undefined;
-}): Promise<ApprovalPayload | null> {
-  if (threadTs) {
-    const result = await client.conversations.replies({
-      channel,
-      ts: threadTs,
-      limit: 50,
-    });
-    const messages = result.messages ?? [];
-    for (let i = messages.length - 1; i >= 0; i -= 1) {
-      const payload = extractApprovalPayloadFromBlocks(messages[i].blocks);
-      if (payload) return payload;
-    }
-    return null;
-  }
-
-  const history = await client.conversations.history({
-    channel,
-    limit: 50,
-  });
-  const messages = history.messages ?? [];
-  for (const message of messages) {
-    const payload = extractApprovalPayloadFromBlocks(message.blocks);
-    if (payload) return payload;
-  }
-  return null;
-}
-
 export async function handleApprovalDecision({
   messages,
   approvals,
@@ -170,7 +137,7 @@ export async function handleApprovalDecision({
   reason?: string;
   model: LanguageModelV3;
   tools?: ToolSet;
-  logger: SlackHandlerContext['logger'];
+  logger: Logger;
   post: (message: {
     text: string;
     blocks?: unknown[];
