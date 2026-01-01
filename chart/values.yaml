@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=values.schema.json
+
+# Image settings for the deployment.
+# @schema
+# required: true
+# @schema
+image:
+  # Image repository for the deployment.
+  # @schema
+  # required: true
+  # @schema
+  repository: ghcr.io/flanksource/mission-control-ai-assistant
+  # Image tag for the deployment.
+  # @schema
+  # required: true
+  # @schema
+  tag: '1.0.4'
+  # Image pull policy.
+  # @schema
+  # required: false
+  # @schema
+  pullPolicy: IfNotPresent
+
+# Non-secret configuration provided as environment variables.
+# @schema
+# required: true
+# @schema
+config:
+  # LLM model selection; defaults to claude-haiku-4-5.
+  # @schema
+  # required: false
+  # @schema
+  llmModel: 'claude-haiku-4-5'
+  # Logging level (DEBUG, INFO, WARN, ERROR).
+  # @schema
+  # required: false
+  # @schema
+  logLevel: 'INFO'
+
+# Secret references for Slack/LLM/MCP credentials.
+# Each "name" points to an existing Kubernetes Secret.
+# @schema
+# required: true
+# @schema
+secrets:
+  slack:
+    # Secret containing SLACK_BOT_TOKEN and SLACK_APP_TOKEN keys.
+    # @schema
+    # required: true
+    # @schema
+    name: ''
+    # Key name for SLACK_BOT_TOKEN in the secret.
+    # @schema
+    # required: false
+    # @schema
+    botTokenKey: 'SLACK_BOT_TOKEN'
+    # Key name for SLACK_APP_TOKEN in the secret.
+    # @schema
+    # required: false
+    # @schema
+    appTokenKey: 'SLACK_APP_TOKEN'
+  llm:
+    # Secret containing ANTHROPIC_API_KEY and OPENAI_API_KEY keys.
+    # @schema
+    # required: true
+    # @schema
+    name: ''
+    # Key name for ANTHROPIC_API_KEY in the secret.
+    # @schema
+    # required: false
+    # @schema
+    anthropicKey: 'ANTHROPIC_API_KEY'
+    # Key name for OPENAI_API_KEY in the secret.
+    # @schema
+    # required: false
+    # @schema
+    openaiKey: 'OPENAI_API_KEY'
+  mcp:
+    # Secret containing MCP_URL and MCP_BEARER_TOKEN keys.
+    # @schema
+    # required: true
+    # @schema
+    name: ''
+    # Key name for MCP_URL in the secret.
+    # @schema
+    # required: false
+    # @schema
+    urlKey: 'MCP_URL'
+    # Key name for MCP_BEARER_TOKEN in the secret.
+    # @schema
+    # required: false
+    # @schema
+    bearerTokenKey: 'MCP_BEARER_TOKEN'
+
+# Pod resource requests/limits.
+# @schema
+# required: false
+# @schema
+resources:
+  requests:
+    cpu: '5m'
+    memory: '50Mi'
+  limits:
+    memory: '200Mi'
