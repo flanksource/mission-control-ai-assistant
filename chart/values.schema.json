@@ -6,12 +6,6 @@
       "additionalProperties": false,
       "description": "Non-secret configuration provided as environment variables.",
       "properties": {
-        "llmModel": {
-          "default": "claude-haiku-4-5",
-          "description": "LLM model selection; defaults to claude-haiku-4-5.",
-          "required": [],
-          "title": "llmModel"
-        },
         "logLevel": {
           "default": "INFO",
           "description": "Logging level (DEBUG, INFO, WARN, ERROR).",
@@ -51,11 +45,68 @@
           "title": "tag"
         }
       },
-      "required": [
-        "repository",
-        "tag"
-      ],
+      "required": [],
       "title": "image"
+    },
+    "llm": {
+      "additionalProperties": false,
+      "properties": {
+        "model": {
+          "default": "claude-haiku-4-5",
+          "description": "LLM model for the selected provider.",
+          "required": [],
+          "title": "model"
+        },
+        "provider": {
+          "default": "anthropic",
+          "description": "LLM provider: anthropic or openai.",
+          "required": [],
+          "title": "provider"
+        },
+        "secretKey": {
+          "default": "ANTHROPIC_API_KEY",
+          "description": "Key name for the provider API key in the secret.",
+          "required": [],
+          "title": "secretKey"
+        },
+        "secretName": {
+          "default": "",
+          "description": "Secret name containing the provider API key.",
+          "required": [],
+          "title": "secretName"
+        }
+      },
+      "required": [],
+      "title": "llm",
+      "type": "object"
+    },
+    "mcp": {
+      "additionalProperties": false,
+      "properties": {
+        "bearerTokenKey": {
+          "default": "MCP_BEARER_TOKEN",
+          "description": "Key name for MCP_BEARER_TOKEN in the secret.",
+          "required": [],
+          "title": "bearerTokenKey"
+        },
+        "secretName": {
+          "default": "",
+          "description": "Secret name containing MCP_URL and MCP_BEARER_TOKEN.",
+          "required": [],
+          "title": "secretName"
+        },
+        "urlKey": {
+          "default": "MCP_URL",
+          "description": "Key name for MCP_URL in the secret.",
+          "required": [],
+          "title": "urlKey"
+        }
+      },
+      "required": [
+        "secretName"
+      ],
+      "title": "mcp",
+      "type": "object"
     },
     "resources": {
       "additionalProperties": false,
@@ -104,107 +155,39 @@
       ],
       "title": "resources"
     },
-    "secrets": {
+    "slack": {
       "additionalProperties": false,
-      "description": "Secret references for Slack/LLM/MCP credentials.\nEach \"name\" points to an existing Kubernetes Secret.",
+      "description": "Secret references for Slack/LLM/MCP credentials.",
       "properties": {
-        "llm": {
-          "additionalProperties": false,
-          "properties": {
-            "anthropicKey": {
-              "default": "ANTHROPIC_API_KEY",
-              "description": "Key name for ANTHROPIC_API_KEY in the secret.",
-              "required": [],
-              "title": "anthropicKey"
-            },
-            "name": {
-              "default": "",
-              "description": "Secret containing ANTHROPIC_API_KEY and OPENAI_API_KEY keys.",
-              "required": [],
-              "title": "name"
-            },
-            "openaiKey": {
-              "default": "OPENAI_API_KEY",
-              "description": "Key name for OPENAI_API_KEY in the secret.",
-              "required": [],
-              "title": "openaiKey"
-            }
-          },
-          "required": [
-            "name"
-          ],
-          "title": "llm",
-          "type": "object"
+        "appTokenKey": {
+          "default": "SLACK_APP_TOKEN",
+          "description": "Key name for SLACK_APP_TOKEN in the secret.",
+          "required": [],
+          "title": "appTokenKey"
         },
-        "mcp": {
-          "additionalProperties": false,
-          "properties": {
-            "bearerTokenKey": {
-              "default": "MCP_BEARER_TOKEN",
-              "description": "Key name for MCP_BEARER_TOKEN in the secret.",
-              "required": [],
-              "title": "bearerTokenKey"
-            },
-            "name": {
-              "default": "",
-              "description": "Secret containing MCP_URL and MCP_BEARER_TOKEN keys.",
-              "required": [],
-              "title": "name"
-            },
-            "urlKey": {
-              "default": "MCP_URL",
-              "description": "Key name for MCP_URL in the secret.",
-              "required": [],
-              "title": "urlKey"
-            }
-          },
-          "required": [
-            "name"
-          ],
-          "title": "mcp",
-          "type": "object"
+        "botTokenKey": {
+          "default": "SLACK_BOT_TOKEN",
+          "description": "Key name for SLACK_BOT_TOKEN in the secret.",
+          "required": [],
+          "title": "botTokenKey"
         },
-        "slack": {
-          "additionalProperties": false,
-          "properties": {
-            "appTokenKey": {
-              "default": "SLACK_APP_TOKEN",
-              "description": "Key name for SLACK_APP_TOKEN in the secret.",
-              "required": [],
-              "title": "appTokenKey"
-            },
-            "botTokenKey": {
-              "default": "SLACK_BOT_TOKEN",
-              "description": "Key name for SLACK_BOT_TOKEN in the secret.",
-              "required": [],
-              "title": "botTokenKey"
-            },
-            "name": {
-              "default": "",
-              "description": "Secret containing SLACK_BOT_TOKEN and SLACK_APP_TOKEN keys.",
-              "required": [],
-              "title": "name"
-            }
-          },
-          "required": [
-            "name"
-          ],
-          "title": "slack",
-          "type": "object"
+        "secretName": {
+          "default": "",
+          "description": "Secret name containing Slack tokens.",
+          "required": [],
+          "title": "secretName"
         }
       },
       "required": [
-        "slack",
-        "llm",
-        "mcp"
+        "secretName"
       ],
-      "title": "secrets"
+      "title": "slack"
     }
   },
   "required": [
-    "image",
-    "config",
-    "secrets"
+    "slack",
+    "llm",
+    "mcp"
   ],
   "type": "object"
 }

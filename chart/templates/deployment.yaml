@@ -21,45 +21,49 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
-            - name: LLM_MODEL
-              value: {{ .Values.config.llmModel | quote }}
             - name: LOG_LEVEL
               value: {{ .Values.config.logLevel | quote }}
-            {{- if .Values.secrets.slack.name }}
+            {{- if .Values.llm.model }}
+            - name: LLM_MODEL
+              value: {{ .Values.llm.model | quote }}
+            {{- end }}
+            {{- if .Values.slack.secretName }}
             - name: SLACK_BOT_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.slack.name }}
-                  key: {{ .Values.secrets.slack.botTokenKey }}
+                  name: {{ .Values.slack.secretName }}
+                  key: {{ .Values.slack.botTokenKey }}
             - name: SLACK_APP_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.slack.name }}
-                  key: {{ .Values.secrets.slack.appTokenKey }}
+                  name: {{ .Values.slack.secretName }}
+                  key: {{ .Values.slack.appTokenKey }}
             {{- end }}
-            {{- if .Values.secrets.llm.name }}
+            {{- if and .Values.llm.secretName (eq .Values.llm.provider "anthropic") }}
             - name: ANTHROPIC_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.llm.name }}
-                  key: {{ .Values.secrets.llm.anthropicKey }}
+                  name: {{ .Values.llm.secretName }}
+                  key: {{ .Values.llm.secretKey }}
+            {{- end}}
+            {{- if and .Values.llm.secretName (eq .Values.llm.provider "openai") }}
             - name: OPENAI_API_KEY
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.llm.name }}
-                  key: {{ .Values.secrets.llm.openaiKey }}
+                  name: {{ .Values.llm.secretName }}
+                  key: {{ .Values.llm.secretKey }}
             {{- end }}
-            {{- if .Values.secrets.mcp.name }}
+            {{- if .Values.mcp.secretName }}
             - name: MCP_URL
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.mcp.name }}
-                  key: {{ .Values.secrets.mcp.urlKey }}
+                  name: {{ .Values.mcp.secretName }}
+                  key: {{ .Values.mcp.urlKey }}
             - name: MCP_BEARER_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ .Values.secrets.mcp.name }}
-                  key: {{ .Values.secrets.mcp.bearerTokenKey }}
+                  name: {{ .Values.mcp.secretName }}
+                  key: {{ .Values.mcp.bearerTokenKey }}
             {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
