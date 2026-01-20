@@ -70,7 +70,7 @@ if (!secret) {
 
 const issuer = options.issuer ?? process.env.PROXY_JWT_ISSUER;
 const audience = options.audience ?? process.env.PROXY_JWT_AUDIENCE;
-const expiresIn = options.expiresIn ?? '30d';
+const expiresIn = (options.expiresIn ?? '30d') as jwt.SignOptions['expiresIn'];
 
 const payload: Record<string, unknown> = {
   tenant_id: tenantId,

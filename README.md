@@ -95,6 +95,18 @@ bun run start:proxy
 bun run start:tenant
 ```
 
+## Helm Charts
+
+This repo ships two charts:
+
+- `charts/proxy` → `mission-control-ai-assistant-proxy`
+- `charts/tenant` → `mission-control-ai-assistant-tenant`
+
+Images are published separately:
+
+- `ghcr.io/flanksource/mission-control-ai-assistant-proxy`
+- `ghcr.io/flanksource/mission-control-ai-assistant-tenant`
+
 The proxy connects to Slack via Socket Mode. The tenant bot receives forwarded events and responds to:
 
 - Direct messages sent to the bot
