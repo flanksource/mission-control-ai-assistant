@@ -1,10 +1,34 @@
 services:
-  slack-bot:
-    build: .
+  slack-proxy:
+    build:
+      context: .
+      dockerfile: Dockerfile.proxy
+    environment:
+      - SLACK_APP_TOKEN
+      - SQLITE_DB_PATH
+      - PROXY_JWT_SECRET
+      - PROXY_WS_PORT
+      - PROXY_HTTP_PORT
+    volumes:
+      - slack-proxy-data:/data
+    restart: unless-stopped
+
+  tenant-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile.tenant
     environment:
       - SLACK_BOT_TOKEN
-      - SLACK_APP_TOKEN
+      - PROXY_WS_URL
+      - PROXY_JWT
       - ANTHROPIC_API_KEY
       - OPENAI_API_KEY
+      - GOOGLE_GENERATIVE_AI_API_KEY
       - LLM_MODEL
+      - LOG_LEVEL
+      - MCP_URL
+      - MCP_BEARER_TOKEN
     restart: unless-stopped
+
+volumes:
+  slack-proxy-data: {}

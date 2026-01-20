@@ -124,7 +124,7 @@ export function extractTextFromBlocks(blocks: unknown[]): string {
     .join('\n');
 }
 
-function extractRichText(elements: unknown, botUserId?: string): string {
+function extractRichText(elements: unknown): string {
   if (!Array.isArray(elements)) return '';
 
   const parts: string[] = [];
@@ -134,7 +134,7 @@ function extractRichText(elements: unknown, botUserId?: string): string {
     switch (typedElement.type) {
       case 'rich_text_section': {
         const section = element as { elements?: unknown };
-        const sectionText = extractRichText(section.elements, botUserId);
+        const sectionText = extractRichText(section.elements);
         if (sectionText) parts.push(sectionText);
         break;
       }
@@ -144,7 +144,7 @@ function extractRichText(elements: unknown, botUserId?: string): string {
           const items: string[] = [];
           for (const item of list.elements) {
             if (!item || typeof item !== 'object') continue;
-            const itemText = extractRichText((item as { elements?: unknown }).elements, botUserId);
+            const itemText = extractRichText((item as { elements?: unknown }).elements);
             if (itemText) items.push(`- ${itemText}`);
           }
           if (items.length > 0) parts.push(items.join('\n'));
