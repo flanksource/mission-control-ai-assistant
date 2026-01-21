@@ -44,10 +44,10 @@ jobs:
       matrix:
         include:
           - name: proxy
-            dockerfile: Dockerfile.proxy
+            dockerfile: docker/Dockerfile.proxy
             image_suffix: proxy
           - name: tenant
-            dockerfile: Dockerfile.tenant
+            dockerfile: docker/Dockerfile.tenant
             image_suffix: tenant
 
     steps:

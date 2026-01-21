@@ -4,7 +4,6 @@ image:
   pullPolicy: IfNotPresent
 
 config:
-  sqliteDbPath: ./database.db
   httpPort: 11000
   wsPort: 12000
 

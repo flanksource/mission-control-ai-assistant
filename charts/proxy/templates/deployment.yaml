@@ -26,8 +26,6 @@ spec:
             - name: ws
               containerPort: {{ .Values.config.wsPort }}
           env:
-            - name: SQLITE_DB_PATH
-              value: {{ .Values.config.sqliteDbPath | quote }}
             - name: PROXY_HTTP_PORT
               value: {{ .Values.config.httpPort | quote }}
             - name: PROXY_WS_PORT

@@ -1,13 +1,9 @@
 import 'dotenv/config';
 import http from 'http';
 import WebSocket from 'ws';
-import path from 'path';
-import fs from 'fs';
-import { SQL } from 'bun';
-import { extractRoutingIds, lookupTenantId } from './router';
+import { extractRoutingIds } from './router';
 import { startSocketMode } from './slack';
 import { startTenantSocketServer } from './ws';
-import { runMigrations } from './migrations';
 import { requireEnv } from '../shared/env';
 import { isUserActionEvent } from '../shared/slack';
 
@@ -15,16 +11,6 @@ requireEnv(['SLACK_APP_TOKEN', 'PROXY_JWT_SECRET']);
 
 const wsPort = Number(process.env.PROXY_WS_PORT ?? 12000);
 const httpPort = Number(process.env.PROXY_HTTP_PORT ?? 11000);
-
-const dbPath = process.env.SQLITE_DB_PATH ?? './database.db';
-const dbDir = path.dirname(dbPath);
-if (dbDir && dbDir !== '.' && !fs.existsSync(dbDir)) {
-  fs.mkdirSync(dbDir, { recursive: true });
-}
-
-console.log(`Opening SQLite database at: ${dbPath}`);
-const db = new SQL({ adapter: 'sqlite', filename: dbPath });
-await runMigrations(db);
 
 const tenantServer = startTenantSocketServer({
   port: wsPort,
@@ -50,17 +36,16 @@ const slackClient = await startSocketMode({
 
     const payload = (envelope as any).payload ?? (envelope as any).body ?? envelope;
     const ids = extractRoutingIds(payload);
-    const tenantId = await lookupTenantId(db, ids);
-    if (!tenantId) {
+    const ws = tenantServer.getTenantSocket(ids);
+    if (!ws) {
       metrics.eventsDropped += 1;
       console.warn('No mapping found for routing IDs', ids);
       return;
     }
 
-    const ws = tenantServer.getTenantSocket(tenantId);
     if (!ws || ws.readyState !== WebSocket.OPEN) {
       metrics.eventsDropped += 1;
-      console.warn('Tenant offline', { tenantId, ...ids });
+      console.warn('Tenant offline', ids);
       return;
     }
 
@@ -138,12 +123,6 @@ async function shutdown(signal: string) {
   }
 
   server.close();
-
-  try {
-    (db as any)?.close?.();
-  } catch {
-    // ignore
-  }
 
   clearTimeout(forceExitTimer);
   process.exit(0);

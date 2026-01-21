@@ -1,7 +1,8 @@
 import jwt from 'jsonwebtoken';
 
 export type TenantClaims = {
-  tenant_id: string;
+  team_id?: string;
+  enterprise_id?: string;
   iss?: string;
   aud?: string;
 };
@@ -16,8 +17,8 @@ export function verifyTenantJwt(token: string, secret: string): TenantClaims {
     ...(audience ? { audience } : {}),
   }) as jwt.JwtPayload & TenantClaims;
 
-  if (!claims.tenant_id) {
-    throw new Error('JWT missing tenant_id');
+  if (!claims.team_id && !claims.enterprise_id) {
+    throw new Error('JWT missing team_id or enterprise_id');
   }
 
   return claims;

@@ -15,7 +15,6 @@
 
 - `SLACK_APP_TOKEN`
 - `PROXY_JWT_SECRET`
-- `SQLITE_DB_PATH` (optional, default: `./database.db`)
 
 ### Tenant
 
@@ -31,11 +30,7 @@
 ## Auth
 
 - Proxy uses HS256 JWT for tenant auth.
-- JWT payload must include `tenant_id`.
-
-## Migrations
-
-- Proxy runs idempotent SQLite schema creation on startup.
+- JWT payload must include `team_id` and/or `enterprise_id`.
 
 ## Run
 

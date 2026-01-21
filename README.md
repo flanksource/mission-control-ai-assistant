@@ -50,9 +50,6 @@ The `start:proxy` and `start:tenant` scripts automatically load these files via 
 SLACK_APP_TOKEN=xapp-...
 PROXY_JWT_SECRET=super-secret
 
-# Optional: Storage
-SQLITE_DB_PATH=./data/slack.db
-
 # Optional: Ports
 PROXY_HTTP_PORT=11000
 PROXY_WS_PORT=12000
@@ -64,7 +61,7 @@ PROXY_WS_PORT=12000
 # Tenant bot
 SLACK_BOT_TOKEN=xoxb-...
 PROXY_WS_URL=ws://proxy:12000
-PROXY_JWT=your-tenant-jwt
+PROXY_JWT=your-tenant-jwt # must include team_id and/or enterprise_id
 
 # Required: At least one LLM provider
 ANTHROPIC_API_KEY=sk-ant-...
@@ -112,41 +109,30 @@ The proxy connects to Slack via Socket Mode. The tenant bot receives forwarded e
 - Direct messages sent to the bot
 - @mentions in channels and groups
 
-The proxy runs an idempotent SQLite migration on startup to ensure the
-`slack_installations` table exists.
+The proxy keeps an in-memory map of tenant WebSocket connections keyed by Slack
+`team_id` and/or `enterprise_id`.
 
 ## Generate Tenant JWT
 
-Use the helper script (HS256) to mint a tenant JWT:
+Use the helper script (HS256) to mint a tenant JWT with Slack routing IDs:
 
 ```bash
-PROXY_JWT_SECRET=super-secret bun run scripts/gen-tenant-jwt.ts --tenant tenant-123
+PROXY_JWT_SECRET=super-secret bun run scripts/gen-tenant-jwt.ts --team T0123456789
 ```
 
 Optional flags:
 
+- `--enterprise` to include an enterprise ID
 - `--iss` / `--aud` to set issuer/audience
 - `--exp` to set expiry (default: `30d`)
 
-## Register Slack Installations
+## Routing
 
-The proxy routes incoming Slack events to tenants based on the `slack_installations` table. You must register each Slack workspace (team) or enterprise org that should be handled by a tenant.
-
-For a **standard workspace** installation:
-
-```sql
-INSERT INTO slack_installations (tenant_id, team_id, is_enterprise_install)
-VALUES ('tenant-123', 'T0123456789', 0);
-```
-
-For an **enterprise org** (Grid) installation:
-
-```sql
-INSERT INTO slack_installations (tenant_id, enterprise_id, is_enterprise_install)
-VALUES ('tenant-456', 'E0123456789', 1);
-```
-
-The `tenant_id` must match the `sub` claim in the JWT used by the tenant bot. You can find your `team_id` or `enterprise_id` in the Slack app's OAuth response or in the event payloads.
+The proxy routes incoming Slack envelopes by looking up the active tenant WebSocket
+connection using the Slack `enterprise_id` (if present) or `team_id`. Tenants must
+connect with a JWT that includes `enterprise_id` and/or `team_id`. If both are present,
+the tenant connection is registered for both IDs. You can find these IDs in the Slack
+app's OAuth response or in event payloads.
 
 ## Logging
 

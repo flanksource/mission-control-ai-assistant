@@ -1,27 +1,7 @@
-import type { SQL } from 'bun';
-
 export type RoutingIds = {
   teamId?: string | null;
   enterpriseId?: string | null;
 };
-
-export async function lookupTenantId(db: SQL, ids: RoutingIds): Promise<string | null> {
-  if (ids.enterpriseId) {
-    const rows =
-      await db`SELECT tenant_id FROM slack_installations WHERE enterprise_id = ${ids.enterpriseId} AND is_enterprise_install = 1 LIMIT 1`;
-    if (rows[0]?.tenant_id) {
-      return rows[0].tenant_id;
-    }
-  }
-
-  if (ids.teamId) {
-    const rows =
-      await db`SELECT tenant_id FROM slack_installations WHERE team_id = ${ids.teamId} LIMIT 1`;
-    return rows[0]?.tenant_id ?? null;
-  }
-
-  return null;
-}
 
 export function extractRoutingIds(payload: any): RoutingIds {
   if (!payload) {
@@ -40,4 +20,15 @@ export function extractRoutingIds(payload: any): RoutingIds {
     payload?.enterprise?.id ||
     payload?.authorizations?.[0]?.enterprise_id;
   return { teamId, enterpriseId };
+}
+
+export function buildRoutingKeys(ids: RoutingIds): string[] {
+  const keys: string[] = [];
+  if (ids.enterpriseId) {
+    keys.push(`enterprise:${ids.enterpriseId}`);
+  }
+  if (ids.teamId) {
+    keys.push(`team:${ids.teamId}`);
+  }
+  return keys;
 }
