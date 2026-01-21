@@ -21,6 +21,30 @@ import {
 import { systemPrompt } from '../llm/llm';
 import { LogLevel } from '@slack/bolt';
 
+type ToolDisplayInfo = {
+  providerLabel?: string;
+};
+
+const buildToolDisplayInfo = (tools?: ToolSet): Record<string, ToolDisplayInfo> | undefined => {
+  if (!tools) {
+    return undefined;
+  }
+  const entries = Object.entries(tools).map(([name, tool]) => {
+    const meta = (tool as { _meta?: Record<string, unknown> })._meta;
+    const isMcp = Boolean(meta) || Boolean(process.env.MCP_URL);
+    if (!isMcp) {
+      return [name, {} satisfies ToolDisplayInfo] as const;
+    }
+    return [
+      name,
+      {
+        providerLabel: 'MCP',
+      } satisfies ToolDisplayInfo,
+    ] as const;
+  });
+  return Object.fromEntries(entries);
+};
+
 export function getLogLevel(level?: string): LogLevel {
   switch (level?.toUpperCase()) {
     case 'DEBUG':
@@ -268,6 +292,7 @@ async function handleApprovalDecision({
     channel,
     threadTs,
     logger,
+    toolDisplayInfo: buildToolDisplayInfo(tools),
   });
 
   try {
@@ -319,6 +344,7 @@ export async function respondWithLLM(
       channel,
       threadTs,
       logger,
+      toolDisplayInfo: buildToolDisplayInfo(tools),
     });
 
     const messages: ModelMessage[] = await buildConveration({
@@ -455,14 +481,16 @@ async function createStepProgressReporter({
   channel,
   threadTs,
   logger,
+  toolDisplayInfo,
 }: {
   client: WebClient;
   channel: string;
   threadTs?: string;
   logger: Logger;
+  toolDisplayInfo?: Record<string, { sourceLabel?: string; providerLabel?: string }>;
 }): Promise<{
   onStepFinish: (stepResult: {
-    toolCalls: Array<{ toolName: string }>;
+    toolCalls: Array<{ toolName: string; input?: unknown }>;
     toolResults: Array<{ toolName: string }>;
   }) => Promise<void>;
   finalize: (status: 'done' | 'error') => Promise<void>;
@@ -470,7 +498,25 @@ async function createStepProgressReporter({
   const toolLines: string[] = [];
   let stepCount = 0;
   let progressMessageTs: string | undefined;
-  const maxVisibleSteps = 12;
+  const maxVisibleSteps = 12; // Slack message length + readability cap.
+  const maxToolInputChars = 160; // Keep tool lines short to reduce Slack wrapping.
+
+  const truncate = (value: string, maxLength: number) => {
+    if (value.length <= maxLength) {
+      return value;
+    }
+    return `${value.slice(0, Math.max(0, maxLength - 3))}...`;
+  };
+
+  // Format: `toolName(key: value, ...) (MCP)` for Slack monospace display.
+  const formatToolCallLine = (toolCall: { toolName: string; input?: unknown }) => {
+    const rawInput = JSON.stringify(toolCall.input);
+    const renderedInput = truncate(rawInput, maxToolInputChars);
+    const inputSuffix = renderedInput ? `(${renderedInput})` : '()';
+    const info = toolDisplayInfo?.[toolCall.toolName];
+    const suffix = info?.providerLabel ? ` (${info.providerLabel})` : '';
+    return `\`${toolCall.toolName}${inputSuffix}${suffix}\``;
+  };
 
   const buildProgressText = (status?: 'done' | 'error') => {
     if (toolLines.length === 0) {
@@ -514,22 +560,11 @@ async function createStepProgressReporter({
 
     if (visibleSteps.length > 0) {
       blocks.push({
-        type: 'rich_text',
-        elements: [
-          {
-            type: 'rich_text_list',
-            style: 'bullet',
-            elements: visibleSteps.map((line) => ({
-              type: 'rich_text_section',
-              elements: [
-                {
-                  type: 'text',
-                  text: line,
-                },
-              ],
-            })),
-          },
-        ],
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: visibleSteps.map((line) => `• ${line}`).join('\n'),
+        },
       });
     }
 
@@ -563,14 +598,13 @@ async function createStepProgressReporter({
   return {
     onStepFinish: async (stepResult) => {
       stepCount += 1;
-      const toolCallNames = Array.from(new Set(stepResult.toolCalls.map((call) => call.toolName)));
-
-      if (toolCallNames.length === 0) {
+      if (stepResult.toolCalls.length === 0) {
         return;
       }
 
-      for (const toolName of toolCallNames) {
-        toolLines.push(`tool: ${toolName}()`);
+      for (const toolCall of stepResult.toolCalls) {
+        console.log(JSON.stringify(toolCall, null, 2));
+        toolLines.push(formatToolCallLine(toolCall));
       }
 
       updateProgressMessage().catch((error) => {
