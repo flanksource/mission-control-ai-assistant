@@ -1,0 +1,30 @@
+services:
+  slack-proxy:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.proxy
+    network_mode: host
+    environment:
+      - SLACK_APP_TOKEN
+      - PROXY_JWT_SECRET
+      - PROXY_WS_PORT
+      - PROXY_HTTP_PORT
+    restart: unless-stopped
+
+  tenant-bot:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.tenant
+    network_mode: host
+    environment:
+      - SLACK_BOT_TOKEN
+      - PROXY_WS_URL
+      - PROXY_JWT
+      - ANTHROPIC_API_KEY
+      - OPENAI_API_KEY
+      - GOOGLE_GENERATIVE_AI_API_KEY
+      - LLM_MODEL
+      - LOG_LEVEL
+      - MCP_URL
+      - MCP_BEARER_TOKEN
+    restart: unless-stopped

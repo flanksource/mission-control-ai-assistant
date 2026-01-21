@@ -1,6 +1,6 @@
 # Mission Control Assistant Slack Bot
 
-A Slack bot that responds to direct messages (DMs) and mentions using Slack Bolt in Socket Mode, built with TypeScript and Bun. The bot uses Anthropic Claude or OpenAI models via Vercel AI SDK and supports MCP (Model Context Protocol) integration for extended tool capabilities.
+Multi-tenant Slack bot setup with a **Socket Mode proxy** and **tenant bots**. Built with TypeScript and Bun. The proxy holds the **app token** (`xapp-...`) and forwards Socket Mode envelopes to tenant bots over WebSocket. Tenant bots hold only **bot tokens** (`xoxb-...`) and process events via Bolt with a custom receiver.
 
 ## Features
 
@@ -8,7 +8,7 @@ A Slack bot that responds to direct messages (DMs) and mentions using Slack Bolt
 - 💬 Responds to direct messages and @mentions
 - 🔌 MCP integration for extended functionality (catalog search, health checks, playbooks, etc.)
 - ✅ Tool approval workflow for sensitive operations
-- ⚡ Built with Slack Bolt in Socket Mode
+- ⚡ Proxy uses Socket Mode; tenants run Bolt with a custom receiver
 
 ## Setup
 
@@ -34,12 +34,34 @@ A Slack bot that responds to direct messages (DMs) and mentions using Slack Bolt
 
 ### 2. Environment Configuration
 
-Copy `.env.example` to `.env` and configure:
+Copy the service-specific example file and configure:
 
 ```bash
-# Required: Slack credentials
-SLACK_BOT_TOKEN=xoxb-...
+cp .env.proxy.example .env.proxy
+cp .env.tenant.example .env.tenant
+```
+
+The `start:proxy` and `start:tenant` scripts automatically load these files via `DOTENV_CONFIG_PATH`. If you run the entry points directly, set `DOTENV_CONFIG_PATH` yourself.
+
+#### Proxy (`.env.proxy`)
+
+```bash
+# Proxy
 SLACK_APP_TOKEN=xapp-...
+PROXY_JWT_SECRET=super-secret
+
+# Optional: Ports
+PROXY_HTTP_PORT=11000
+PROXY_WS_PORT=12000
+```
+
+#### Tenant bot (`.env.tenant`)
+
+```bash
+# Tenant bot
+SLACK_BOT_TOKEN=xoxb-...
+PROXY_WS_URL=ws://proxy:12000
+PROXY_JWT=your-tenant-jwt # must include team_id and/or enterprise_id
 
 # Required: At least one LLM provider
 ANTHROPIC_API_KEY=sk-ant-...
@@ -66,13 +88,51 @@ bun install
 ## Run
 
 ```bash
-bun start
+bun run start:proxy
+bun run start:tenant
 ```
 
-The bot will connect to Slack via Socket Mode and respond to:
+## Helm Charts
+
+This repo ships two charts:
+
+- `charts/proxy` → `mission-control-ai-assistant-proxy`
+- `charts/tenant` → `mission-control-ai-assistant-tenant`
+
+Images are published separately:
+
+- `ghcr.io/flanksource/mission-control-ai-assistant-proxy`
+- `ghcr.io/flanksource/mission-control-ai-assistant-tenant`
+
+The proxy connects to Slack via Socket Mode. The tenant bot receives forwarded events and responds to:
 
 - Direct messages sent to the bot
 - @mentions in channels and groups
+
+The proxy keeps an in-memory map of tenant WebSocket connections keyed by Slack
+`team_id` and/or `enterprise_id`.
+
+## Generate Tenant JWT
+
+Use the helper script (HS256) to mint a tenant JWT with Slack routing IDs:
+
+```bash
+PROXY_JWT_SECRET=super-secret bun run scripts/gen-tenant-jwt.ts --team T0123456789
+```
+
+Optional flags:
+
+- `--enterprise` to include an enterprise ID
+- `--iss` / `--aud` to set issuer/audience
+- `--exp` to set expiry (default: `30d`)
+
+## Routing
+
+The proxy routes incoming Slack envelopes by looking up the active tenant WebSocket
+connection using the Slack `enterprise_id` (if present) or `team_id`. Tenants must
+connect with a JWT that includes `enterprise_id` and/or `team_id`. If both are present,
+the tenant connection is registered for both IDs. You can find these IDs in the Slack
+app's OAuth response or in event payloads.
 
 ## Logging
 

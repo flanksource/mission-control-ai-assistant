@@ -1,0 +1,32 @@
+image:
+  repository: ghcr.io/flanksource/mission-control-ai-assistant-tenant
+  tag: ''
+  pullPolicy: IfNotPresent
+
+config:
+  proxyWsUrl: ws://proxy:12000
+  logLevel: INFO
+
+secrets:
+  name: ''
+  slackBotTokenKey: SLACK_BOT_TOKEN
+  proxyJwtKey: PROXY_JWT
+
+llm:
+  provider: anthropic
+  secretName: ''
+  secretKey: ANTHROPIC_API_KEY
+  model: claude-haiku-4-5
+
+mcp:
+  enabled: false
+  secretName: ''
+  urlKey: MCP_URL
+  bearerTokenKey: MCP_BEARER_TOKEN
+
+resources:
+  requests:
+    cpu: '5m'
+    memory: '50Mi'
+  limits:
+    memory: '200Mi'

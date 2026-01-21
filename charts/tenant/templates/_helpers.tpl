@@ -1,8 +1,8 @@
-{{- define "mission-control-ai-assistant.name" -}}
+{{- define "mission-control-ai-assistant-tenant.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
-{{- define "mission-control-ai-assistant.fullname" -}}
+{{- define "mission-control-ai-assistant-tenant.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -11,8 +11,8 @@
 {{- end -}}
 {{- end -}}
 
-{{- define "mission-control-ai-assistant.labels" -}}
-app.kubernetes.io/name: {{ include "mission-control-ai-assistant.name" . }}
+{{- define "mission-control-ai-assistant-tenant.labels" -}}
+app.kubernetes.io/name: {{ include "mission-control-ai-assistant-tenant.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}

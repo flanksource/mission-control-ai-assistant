@@ -1,4 +1,4 @@
-import { App, SayFn, StringIndexed } from '@slack/bolt';
+import { App, LogLevel, SayFn, StringIndexed, type Receiver } from '@slack/bolt';
 import { LanguageModelV3 } from '@ai-sdk/provider';
 import type { AppMentionEvent, GenericMessageEvent } from '@slack/types';
 import type { WebClient, Logger } from '@slack/web-api';
@@ -19,7 +19,7 @@ import {
   extractTextFromBlocks,
 } from './blocks';
 import { systemPrompt } from '../llm/llm';
-import { LogLevel } from '@slack/bolt';
+import { isUserActionEvent } from '../shared/slack';
 
 export function getLogLevel(level?: string): LogLevel {
   switch (level?.toUpperCase()) {
@@ -36,16 +36,20 @@ export function getLogLevel(level?: string): LogLevel {
   }
 }
 
-export async function slackApp(
-  botToken: string,
-  appToken: string,
-  model: LanguageModelV3,
-  tools?: ToolSet,
-): Promise<App<StringIndexed>> {
+export async function slackApp({
+  botToken,
+  receiver,
+  model,
+  tools,
+}: {
+  botToken: string;
+  receiver: Receiver;
+  model: LanguageModelV3;
+  tools?: ToolSet;
+}): Promise<App<StringIndexed>> {
   const app = new App({
     token: botToken,
-    appToken: appToken,
-    socketMode: true,
+    receiver,
     logLevel: getLogLevel(process.env.LOG_LEVEL),
   });
 
@@ -56,7 +60,7 @@ export async function slackApp(
   const botUserId = authTest.user_id;
 
   app.use(async ({ body, logger, next }) => {
-    if ('event' in body) {
+    if ('event' in body && isUserActionEvent(body)) {
       const eventLog: Record<string, any> = {
         type: body.event.type,
         text: body.event.text,
@@ -86,12 +90,26 @@ export async function slackApp(
       return;
     }
 
-    await respondWithLLM({ message, say, client, logger }, botUserId, model, tools);
+    const text = (message.text || '').trim().toLowerCase();
+    if (text === 'ping') {
+      await say('pong');
+      return;
+    }
+
+    try {
+      await respondWithLLM({ message, say, client, logger }, botUserId, model, tools);
+    } catch (error) {
+      logger.error('respondWithLLM failed', error);
+    }
   });
 
   app.event('app_mention', async ({ event, say, client, logger }) => {
     const message = event as AppMentionEvent;
-    await respondWithLLM({ message, say, client, logger }, botUserId, model, tools);
+    try {
+      await respondWithLLM({ message, say, client, logger }, botUserId, model, tools);
+    } catch (error) {
+      logger.error('respondWithLLM failed', error);
+    }
   });
 
   app.action('tool_approval_approve', async ({ ack, body, client, logger }) => {
@@ -177,7 +195,7 @@ async function handleToolApprovalAction({
     return;
   }
 
-  const messages: ModelMessage[] = await buildConveration({
+  const messages: ModelMessage[] = await buildConversation({
     client,
     channel,
     threadTs,
@@ -307,59 +325,63 @@ export async function respondWithLLM(
   model: LanguageModelV3,
   tools?: ToolSet,
 ) {
+  logger.info('respondWithLLM start', {
+    channel: message.channel,
+    ts: message.ts,
+    type: message.type,
+  });
   const blocks = 'blocks' in message ? (message.blocks ?? []) : [];
   const text = extractTextFromBlocks(blocks);
   const { channel } = message;
   const messageTs = message.ts;
   const threadTs = 'thread_ts' in message ? message.thread_ts : undefined;
 
+  const stepReporter = await createStepProgressReporter({
+    client,
+    channel,
+    threadTs,
+    logger,
+  });
+
+  const messages: ModelMessage[] = await buildConversation({
+    client,
+    channel,
+    threadTs,
+    botUserId,
+    text: message.text || text,
+  });
+
   try {
-    const stepReporter = await createStepProgressReporter({
-      client,
-      channel,
-      threadTs,
-      logger,
+    const result = await generateText({
+      model,
+      messages,
+      stopWhen: stepCountIs(20),
+      system: systemPrompt,
+      onStepFinish: stepReporter.onStepFinish,
+      ...(tools ? { tools } : {}),
     });
 
-    const messages: ModelMessage[] = await buildConveration({
-      client,
-      channel,
-      threadTs,
-      botUserId,
-      text: message.text || text,
+    const response = renderToolResponse({
+      responseMessages: result.response.messages ?? [],
+      replyText: result.text?.trim() ?? '',
+      includeReplyTextWithApprovals: true,
     });
 
-    try {
-      const result = await generateText({
-        model,
-        messages,
-        stopWhen: stepCountIs(20),
-        system: systemPrompt,
-        onStepFinish: stepReporter.onStepFinish,
-        ...(tools ? { tools } : {}),
-      });
-
-      const response = renderToolResponse({
-        responseMessages: result.response.messages ?? [],
-        replyText: result.text?.trim() ?? '',
-        includeReplyTextWithApprovals: true,
-      });
-
-      await say({
-        text: response.text,
-        ...(threadTs ? { thread_ts: threadTs } : {}),
-        ...(response.blocks ? { blocks: response.blocks } : {}),
-      });
-      await stepReporter.finalize('done');
-    } catch (error) {
-      await stepReporter.finalize('error');
-      throw error;
-    }
-  } finally {
+    await say({
+      text: response.text,
+      ...(threadTs ? { thread_ts: threadTs } : {}),
+      ...(response.blocks ? { blocks: response.blocks } : {}),
+    });
+    await stepReporter.finalize('done');
+    logger.info('respondWithLLM success', { channel, ts: messageTs });
+  } catch (error) {
+    await stepReporter.finalize('error');
+    logger.error('respondWithLLM generateText failed', error);
+    throw error;
   }
 }
 
-export async function buildConveration({
+export async function buildConversation({
   client,
   channel,
   threadTs,

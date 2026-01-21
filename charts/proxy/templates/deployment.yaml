@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "mission-control-ai-assistant-proxy.fullname" . }}
+  labels:
+    {{- include "mission-control-ai-assistant-proxy.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "mission-control-ai-assistant-proxy.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "mission-control-ai-assistant-proxy.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+    spec:
+      containers:
+        - name: slack-proxy
+          image: "{{ .Values.image.repository }}:{{ default .Chart.AppVersion .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.config.httpPort }}
+            - name: ws
+              containerPort: {{ .Values.config.wsPort }}
+          env:
+            - name: PROXY_HTTP_PORT
+              value: {{ .Values.config.httpPort | quote }}
+            - name: PROXY_WS_PORT
+              value: {{ .Values.config.wsPort | quote }}
+            {{- if .Values.secrets.name }}
+            - name: SLACK_APP_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.name }}
+                  key: {{ .Values.secrets.slackAppTokenKey }}
+            - name: PROXY_JWT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.secrets.name }}
+                  key: {{ .Values.secrets.proxyJwtSecretKey }}
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

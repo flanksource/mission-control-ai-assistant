@@ -1,0 +1,28 @@
+# Build stage
+FROM oven/bun:1 AS builder
+WORKDIR /app
+
+# Copy package files and install dependencies
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile
+
+# Copy source code
+COPY . .
+
+# Compile to standalone executable
+RUN bun build --compile --minify --sourcemap src/proxy/index.ts --outfile slack-proxy
+
+# Runtime stage - minimal image
+FROM debian:12-slim AS release
+WORKDIR /app
+
+# Copy only the compiled binary
+COPY --from=builder /app/slack-proxy /app/slack-proxy
+
+# Create non-root user and data directory
+RUN useradd -r -s /bin/false appuser && \
+    mkdir -p /data && \
+    chown -R appuser:appuser /app /data
+
+USER appuser
+ENTRYPOINT ["/app/slack-proxy"]

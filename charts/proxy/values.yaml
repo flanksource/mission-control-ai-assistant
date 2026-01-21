@@ -1,0 +1,23 @@
+image:
+  repository: ghcr.io/flanksource/mission-control-ai-assistant-proxy
+  tag: ''
+  pullPolicy: IfNotPresent
+
+config:
+  httpPort: 11000
+  wsPort: 12000
+
+secrets:
+  name: ''
+  slackAppTokenKey: SLACK_APP_TOKEN
+  proxyJwtSecretKey: PROXY_JWT_SECRET
+
+service:
+  type: ClusterIP
+
+resources:
+  requests:
+    cpu: '5m'
+    memory: '50Mi'
+  limits:
+    memory: '200Mi'

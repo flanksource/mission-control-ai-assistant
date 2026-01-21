@@ -10,18 +10,18 @@ RUN bun install --frozen-lockfile
 COPY . .
 
 # Compile to standalone executable
-RUN bun build --compile --minify --sourcemap src/index.ts --outfile slack-bot
+RUN bun build --compile --minify --sourcemap src/tenant-bot/index.ts --outfile tenant-bot
 
 # Runtime stage - minimal image
 FROM debian:12-slim AS release
 WORKDIR /app
 
 # Copy only the compiled binary
-COPY --from=builder /app/slack-bot /app/slack-bot
+COPY --from=builder /app/tenant-bot /app/tenant-bot
 
 # Create non-root user
 RUN useradd -r -s /bin/false appuser && \
     chown -R appuser:appuser /app
 
 USER appuser
-ENTRYPOINT ["/app/slack-bot"]
+ENTRYPOINT ["/app/tenant-bot"]
