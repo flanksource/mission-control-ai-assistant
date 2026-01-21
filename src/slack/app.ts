@@ -19,6 +19,7 @@ import {
   extractTextFromBlocks,
 } from './blocks';
 import { systemPrompt } from '../llm/llm';
+import { isUserActionEvent } from '../shared/slack';
 
 export function getLogLevel(level?: string): LogLevel {
   switch (level?.toUpperCase()) {
@@ -59,7 +60,7 @@ export async function slackApp({
   const botUserId = authTest.user_id;
 
   app.use(async ({ body, logger, next }) => {
-    if ('event' in body) {
+    if ('event' in body && isUserActionEvent(body)) {
       const eventLog: Record<string, any> = {
         type: body.event.type,
         text: body.event.text,

@@ -9,6 +9,7 @@ import { startSocketMode } from './slack';
 import { startTenantSocketServer } from './ws';
 import { runMigrations } from './migrations';
 import { requireEnv } from '../shared/env';
+import { isUserActionEvent } from '../shared/slack';
 
 requireEnv(['SLACK_APP_TOKEN', 'PROXY_JWT_SECRET']);
 
@@ -21,6 +22,7 @@ if (dbDir && dbDir !== '.' && !fs.existsSync(dbDir)) {
   fs.mkdirSync(dbDir, { recursive: true });
 }
 
+console.log(`Opening SQLite database at: ${dbPath}`);
 const db = new SQL({ adapter: 'sqlite', filename: dbPath });
 await runMigrations(db);
 
@@ -63,11 +65,12 @@ const slackClient = await startSocketMode({
     }
 
     ws.send(JSON.stringify(envelope));
-    console.log('Forwarded envelope', {
-      tenantId,
-      envelopeId: envelope.envelope_id,
-      type: envelope.type,
-    });
+    if (isUserActionEvent(payload)) {
+      console.debug('Forwarded envelope', {
+        envelope_id: envelope.envelope_id,
+        team_id: ids.teamId,
+      });
+    }
     metrics.eventsForwarded += 1;
   },
   onConnected: () => {

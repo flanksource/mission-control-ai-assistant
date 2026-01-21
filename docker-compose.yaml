@@ -3,6 +3,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.proxy
+    network_mode: host
     environment:
       - SLACK_APP_TOKEN
       - SQLITE_DB_PATH
@@ -10,13 +11,14 @@ services:
       - PROXY_WS_PORT
       - PROXY_HTTP_PORT
     volumes:
-      - slack-proxy-data:/data
+      - ./database.db:/data/database.db
     restart: unless-stopped
 
   tenant-bot:
     build:
       context: .
       dockerfile: Dockerfile.tenant
+    network_mode: host
     environment:
       - SLACK_BOT_TOKEN
       - PROXY_WS_URL

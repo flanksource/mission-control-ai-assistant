@@ -1,5 +1,6 @@
 import WebSocket from 'ws';
 import type { App, Receiver } from '@slack/bolt';
+import { isUserActionEvent } from '../shared/slack';
 
 type ProxyReceiverOptions = {
   url: string;
@@ -72,19 +73,18 @@ export class ProxyReceiver implements Receiver {
         return;
       }
 
-      const envelopeType =
-        envelope?.type ?? envelope?.payload?.type ?? (envelope as any)?.body?.type;
-      const messageText =
-        envelope?.payload?.event?.text ??
-        (envelope as any)?.body?.event?.text ??
-        (envelope as any)?.event?.text ??
-        envelope?.payload?.text ??
-        (envelope as any)?.body?.text;
-      console.log('Proxy WS received envelope', {
-        envelopeId: envelope?.envelope_id,
-        type: envelopeType,
-        text: messageText,
-      });
+      const teamId =
+        envelope?.payload?.team_id ??
+        envelope?.payload?.team?.id ??
+        (envelope as any)?.body?.team_id ??
+        (envelope as any)?.body?.team?.id;
+      const payload = envelope?.payload ?? (envelope as any)?.body ?? envelope;
+      if (isUserActionEvent(payload)) {
+        console.debug('Proxy WS received envelope', {
+          envelope_id: envelope?.envelope_id,
+          team_id: teamId,
+        });
+      }
 
       try {
         await this.handleEnvelope(envelope);
@@ -148,10 +148,6 @@ export class ProxyReceiver implements Receiver {
 
     const envelopeType =
       envelope.type ?? (envelope as any).payload?.type ?? (envelope as any).body?.type;
-    console.log('Dispatching envelope to Bolt', {
-      envelopeId: envelope.envelope_id,
-      type: envelopeType,
-    });
 
     try {
       await this.app.processEvent({
