@@ -19,9 +19,10 @@ WORKDIR /app
 # Copy only the compiled binary
 COPY --from=builder /app/slack-proxy /app/slack-proxy
 
-# Create non-root user
+# Create non-root user and data directory
 RUN useradd -r -s /bin/false appuser && \
-    chown -R appuser:appuser /app
+    mkdir -p /data && \
+    chown -R appuser:appuser /app /data
 
 USER appuser
 ENTRYPOINT ["/app/slack-proxy"]

@@ -5,7 +5,7 @@ import type { LanguageModelV3 } from '@ai-sdk/provider';
 
 export const systemPrompt = [
   "You are a Slack bot assigned to work as a customer service for Flanksource's Mission Control customers.",
-  "Flanksource Mission Control is an internal developer platform that helps teams improve developer productivity and operational resilience.",
+  'Flanksource Mission Control is an internal developer platform that helps teams improve developer productivity and operational resilience.',
   '',
   'Format responses using Slack mrkdwn.',
   "Avoid Markdown features Slack doesn't support, like # headers.",

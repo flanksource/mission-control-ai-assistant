@@ -6,6 +6,10 @@ on:
       - main
   workflow_dispatch:
 
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
 permissions:
   contents: write
   issues: write
@@ -34,6 +38,8 @@ jobs:
     needs: semantic-release
     if: needs.semantic-release.outputs.new-release-published == 'true'
     runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ needs.semantic-release.outputs.release-version }}
     strategy:
       matrix:
         include:
@@ -46,7 +52,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -64,8 +70,8 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_BASE }}-${{ matrix.image_suffix }}
           tags: |
-            type=semver,pattern={{version}},value=${{ needs.semantic-release.outputs.release-version }}
-            type=semver,pattern={{major}}.{{minor}},value=${{ needs.semantic-release.outputs.release-version }}
+            type=semver,pattern={{version}},value=${{ env.RELEASE_VERSION }}
+            type=semver,pattern={{major}}.{{minor}},value=${{ env.RELEASE_VERSION }}
             type=raw,value=latest
 
       - name: Build and push Docker image
@@ -83,12 +89,11 @@ jobs:
     needs: semantic-release
     if: needs.semantic-release.outputs.new-release-published == 'true'
     runs-on: ubuntu-latest
+    env:
+      RELEASE_VERSION: ${{ needs.semantic-release.outputs.release-version }}
 
     steps:
-      - uses: actions/checkout@v4
-      - name: Set version
-        run: |
-          echo "RELEASE_VERSION=${{ needs.semantic-release.outputs.release-version }}" >> $GITHUB_ENV
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
       - name: Update chart version
         uses: mikefarah/yq@7ccaf8e700ce99eb3f0f6cef7f5930a0b3c827cd # v4.49.2
         with:
@@ -101,25 +106,27 @@ jobs:
         uses: azure/setup-helm@18bc76811624f360dbd7f18c2d4ecb32c7b87bab # v1.1
         with:
           version: v3.8.0
-      - name: Package Helm chart
+      - name: Package Helm charts
         run: |
-          helm package ./charts/tenant
-          helm package ./charts/proxy
+          for chart in ./charts/tenant ./charts/proxy; do
+            helm package "$chart"
+          done
       - name: Clone charts repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
         with:
-          repository: "${{ github.repository_owner }}/charts"
+          repository: '${{ github.repository_owner }}/charts'
           path: charts-repo
-          token: "${{ secrets.FLANKBOT }}"
+          token: '${{ secrets.FLANKBOT }}'
       - name: Update chart repo
         run: |
           cd charts-repo
-          cp ../mission-control-ai-assistant-tenant-*.tgz ./
-          cp ../mission-control-ai-assistant-proxy-*.tgz ./
+          for chart in mission-control-ai-assistant-tenant mission-control-ai-assistant-proxy; do
+            cp ../${chart}-*.tgz ./
+          done
           helm repo index --merge index.yaml .
       - name: Push changes to chart repo
         uses: stefanzweifel/git-auto-commit-action@3ea6ae190baf489ba007f7c92608f33ce20ef04a # v4.16.0
         with:
-          commit_message: "Release ${{ env.RELEASE_VERSION }} of ${{ github.repository }}"
+          commit_message: 'Release ${{ env.RELEASE_VERSION }} of ${{ github.repository }}'
           branch: gh-pages
           repository: ./charts-repo

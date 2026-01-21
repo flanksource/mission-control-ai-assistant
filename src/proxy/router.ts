@@ -7,12 +7,16 @@ export type RoutingIds = {
 
 export async function lookupTenantId(db: SQL, ids: RoutingIds): Promise<string | null> {
   if (ids.enterpriseId) {
-    const rows = await db`SELECT tenant_id FROM slack_installations WHERE enterprise_id = ${ids.enterpriseId} LIMIT 1`;
-    return rows[0]?.tenant_id ?? null;
+    const rows =
+      await db`SELECT tenant_id FROM slack_installations WHERE enterprise_id = ${ids.enterpriseId} AND is_enterprise_install = 1 LIMIT 1`;
+    if (rows[0]?.tenant_id) {
+      return rows[0].tenant_id;
+    }
   }
 
   if (ids.teamId) {
-    const rows = await db`SELECT tenant_id FROM slack_installations WHERE team_id = ${ids.teamId} LIMIT 1`;
+    const rows =
+      await db`SELECT tenant_id FROM slack_installations WHERE team_id = ${ids.teamId} LIMIT 1`;
     return rows[0]?.tenant_id ?? null;
   }
 

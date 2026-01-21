@@ -13,9 +13,13 @@ export type SocketModeEnvelope = {
 export async function startSocketMode({
   appToken,
   onEnvelope,
+  onConnected,
+  onDisconnected,
 }: {
   appToken: string;
   onEnvelope: (envelope: SocketModeEnvelope) => Promise<void>;
+  onConnected?: () => void;
+  onDisconnected?: () => void;
 }) {
   const client = new SocketModeClient({
     appToken,
@@ -37,6 +41,16 @@ export async function startSocketMode({
       retry_attempt: event.retry_num,
       retry_reason: event.retry_reason,
     });
+  });
+
+  client.on('connected', () => {
+    console.log('Socket Mode connected');
+    onConnected?.();
+  });
+
+  client.on('disconnected', () => {
+    console.log('Socket Mode disconnected');
+    onDisconnected?.();
   });
 
   client.on('error', (error) => {

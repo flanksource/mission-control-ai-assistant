@@ -70,9 +70,13 @@ const slackClient = await startSocketMode({
     });
     metrics.eventsForwarded += 1;
   },
+  onConnected: () => {
+    slackConnected = true;
+  },
+  onDisconnected: () => {
+    slackConnected = false;
+  },
 });
-
-slackConnected = true;
 
 const server = http.createServer((req, res) => {
   if (req.url === '/healthz') {

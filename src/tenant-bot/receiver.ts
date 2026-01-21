@@ -120,15 +120,34 @@ export class ProxyReceiver implements Receiver {
     const respond =
       responseUrl && typeof responseUrl === 'string'
         ? async (response: any) => {
-            await fetch(responseUrl, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(response),
-            });
+            try {
+              const res = await fetch(responseUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(response),
+              });
+              if (!res.ok) {
+                let errorBody: string | undefined;
+                try {
+                  errorBody = await res.text();
+                } catch {
+                  // ignore body read errors
+                }
+                console.error('Failed to send response to Slack', {
+                  responseUrl,
+                  status: res.status,
+                  statusText: res.statusText,
+                  body: errorBody,
+                });
+              }
+            } catch (error) {
+              console.error('Error sending response to Slack', { responseUrl, error });
+            }
           }
         : undefined;
 
-    const envelopeType = envelope.type ?? (envelope as any).payload?.type ?? (envelope as any).body?.type;
+    const envelopeType =
+      envelope.type ?? (envelope as any).payload?.type ?? (envelope as any).body?.type;
     console.log('Dispatching envelope to Bolt', {
       envelopeId: envelope.envelope_id,
       type: envelopeType,

@@ -7,7 +7,7 @@
     "start": "bun run start:tenant",
     "start:tenant": "DOTENV_CONFIG_PATH=.env.tenant bun run src/tenant-bot/index.ts",
     "start:proxy": "DOTENV_CONFIG_PATH=.env.proxy bun run src/proxy/index.ts",
-    "format": "prettier --write .",
+    "format": "prettier --write src",
     "format:check": "prettier --check .",
     "test": "bun test",
     "typecheck": "tsc -p tsconfig.json",

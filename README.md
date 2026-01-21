@@ -128,6 +128,26 @@ Optional flags:
 - `--iss` / `--aud` to set issuer/audience
 - `--exp` to set expiry (default: `30d`)
 
+## Register Slack Installations
+
+The proxy routes incoming Slack events to tenants based on the `slack_installations` table. You must register each Slack workspace (team) or enterprise org that should be handled by a tenant.
+
+For a **standard workspace** installation:
+
+```sql
+INSERT INTO slack_installations (tenant_id, team_id, is_enterprise_install)
+VALUES ('tenant-123', 'T0123456789', 0);
+```
+
+For an **enterprise org** (Grid) installation:
+
+```sql
+INSERT INTO slack_installations (tenant_id, enterprise_id, is_enterprise_install)
+VALUES ('tenant-456', 'E0123456789', 1);
+```
+
+The `tenant_id` must match the `sub` claim in the JWT used by the tenant bot. You can find your `team_id` or `enterprise_id` in the Slack app's OAuth response or in the event payloads.
+
 ## Logging
 
 Control log verbosity with the `LOG_LEVEL` environment variable:
