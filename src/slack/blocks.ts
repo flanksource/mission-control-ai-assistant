@@ -6,13 +6,55 @@
 //   DividerBlock | FileBlock | HeaderBlock | ImageBlock | InputBlock |
 //   MarkdownBlock | RichTextBlock | SectionBlock
 
-export function buildTextBlocks(text: string) {
+// Slack Block Kit limits
+// https://api.slack.com/reference/block-kit/blocks
+const SLACK_SECTION_TEXT_LIMIT = 3000;
+const SLACK_BUTTON_TEXT_LIMIT = 75;
+const SLACK_URL_LIMIT = 3000;
+
+function ellipsis(text: string, maxLength: number): string {
+  if (text.length <= maxLength) return text;
+  return text.slice(0, maxLength - 3) + '...';
+}
+
+function truncateSectionText(text: string): string {
+  return ellipsis(text, SLACK_SECTION_TEXT_LIMIT);
+}
+
+function truncateButtonText(text: string): string {
+  return ellipsis(text, SLACK_BUTTON_TEXT_LIMIT);
+}
+
+function truncateUrl(url: string): string {
+  return url.slice(0, SLACK_URL_LIMIT);
+}
+
+function buildButton(
+  text: string,
+  actionId: string,
+  options?: { value?: string; style?: 'primary' | 'danger'; url?: string }
+) {
+  const button: Record<string, unknown> = {
+    type: 'button',
+    text: {
+      type: 'plain_text',
+      text: truncateButtonText(text),
+    },
+    action_id: actionId,
+  };
+  if (options?.value) button.value = options.value;
+  if (options?.style) button.style = options.style;
+  if (options?.url) button.url = truncateUrl(options.url);
+  return button;
+}
+
+function buildTextBlocks(text: string) {
   return [
     {
       type: 'section',
       text: {
         type: 'mrkdwn',
-        text,
+        text: truncateSectionText(text),
       },
     },
   ];
@@ -24,26 +66,14 @@ export function buildApprovalBlocks(text: string, payloadValue: string) {
     {
       type: 'actions',
       elements: [
-        {
-          type: 'button',
-          text: {
-            type: 'plain_text',
-            text: 'Approve',
-          },
+        buildButton('Approve', 'tool_approval_approve', {
           style: 'primary',
-          action_id: 'tool_approval_approve',
           value: payloadValue,
-        },
-        {
-          type: 'button',
-          text: {
-            type: 'plain_text',
-            text: 'Deny',
-          },
+        }),
+        buildButton('Deny', 'tool_approval_deny', {
           style: 'danger',
-          action_id: 'tool_approval_deny',
           value: payloadValue,
-        },
+        }),
       ],
     },
   ];

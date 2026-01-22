@@ -14,7 +14,6 @@ import { generateText, ModelMessage, stepCountIs, type ToolSet } from 'ai';
 import { ToolApprovalRequest, ToolCallPart } from '@ai-sdk/provider-utils';
 import {
   buildApprovalBlocks,
-  buildTextBlocks,
   mergeMessageText,
   extractTextFromBlocks,
 } from './blocks';
@@ -472,8 +471,13 @@ function renderToolResponse({
     return { text: combinedText, blocks: approvalBlocks };
   }
 
-  const replyBlocks = buildTextBlocks(replyText);
-  return { text: replyText, blocks: replyBlocks };
+  // Prefer plain text for regular LLM replies to avoid Block Kit validation/length issues.
+  // Plain text responses are the default to keep replies reliable and simple.
+  // Slack's text field supports ~40k chars, and block-kit adds stricter limits
+  // (3k per section, block count limits) plus the risk of invalid JSON from the model.
+  // We only use blocks when we need interactive UI (tool approvals) or structured
+  // progress updates; everything else stays as plain text for robustness.
+  return { text: replyText };
 }
 
 async function createStepProgressReporter({
