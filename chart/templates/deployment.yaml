@@ -18,7 +18,7 @@ spec:
     spec:
       containers:
         - name: mission-control-ai-assistant
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          image: "{{ .Values.image.repository }}:{{ tpl .Values.image.tag . }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           env:
             - name: LOG_LEVEL
