@@ -3,7 +3,7 @@ name: mission-control-ai-assistant
 description: Mission Control Assistant Slack Bot
 icon: https://github.com/flanksource/docs/blob/main/docs/images/flanksource-icon.png?raw=true
 type: application
-version: 0.1.0
-appVersion: "1.0.4"
+version: 1.0.11
+appVersion: "1.0.11"
 maintainers:
   - name: Flanksource
