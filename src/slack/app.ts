@@ -64,6 +64,7 @@ export async function slackApp(
   appToken: string,
   model: LanguageModelV3,
   tools?: ToolSet,
+  mcpUnavailable = false,
 ): Promise<App<StringIndexed>> {
   const app = new App({
     token: botToken,
@@ -77,6 +78,16 @@ export async function slackApp(
     throw new Error('Slack auth.test did not return a bot user id');
   }
   const botUserId = authTest.user_id;
+
+  const respond = mcpUnavailable
+    ? async ({ message, say }: SlackHandlerContext) => {
+        const threadTs = 'thread_ts' in message ? message.thread_ts : undefined;
+        await say({
+          text: "Mission Control is temporarily unavailable because I couldn't connect to the MCP server. Please contact an administrator.",
+          ...(threadTs ? { thread_ts: threadTs } : {}),
+        });
+      }
+    : (context: SlackHandlerContext) => respondWithLLM(context, botUserId, model, tools);
 
   app.use(async ({ body, logger, next }) => {
     if ('event' in body) {
@@ -109,12 +120,12 @@ export async function slackApp(
       return;
     }
 
-    await respondWithLLM({ message, say, client, logger }, botUserId, model, tools);
+    await respond({ message, say, client, logger });
   });
 
   app.event('app_mention', async ({ event, say, client, logger }) => {
     const message = event as AppMentionEvent;
-    await respondWithLLM({ message, say, client, logger }, botUserId, model, tools);
+    await respond({ message, say, client, logger });
   });
 
   app.action('tool_approval_approve', async ({ ack, body, client, logger }) => {

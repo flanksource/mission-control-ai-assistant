@@ -12,15 +12,27 @@ async function run() {
   }
 
   const model = buildModel();
-  const mcpClient = await getMCPClient();
-  const tools = await mcpClient?.tools();
-  const toolsWithApproval = tools ? wrapMcpToolsWithApproval(tools) : undefined;
+  let mcpClient: Awaited<ReturnType<typeof getMCPClient>>;
+  let toolsWithApproval: ReturnType<typeof wrapMcpToolsWithApproval> | undefined;
+  let mcpUnavailable = false;
+  try {
+    mcpClient = await getMCPClient();
+    const tools = await mcpClient?.tools();
+    toolsWithApproval = tools ? wrapMcpToolsWithApproval(tools) : undefined;
+  } catch (error) {
+    mcpUnavailable = true;
+    console.error(
+      'Failed to connect to the MCP server; starting in degraded mode:',
+      error instanceof Error ? error.message : error,
+    );
+  }
 
   const app = await slackApp(
     process.env.SLACK_BOT_TOKEN!,
     process.env.SLACK_APP_TOKEN!,
     model!,
     toolsWithApproval,
+    mcpUnavailable,
   );
   app.start();
 
