@@ -6,6 +6,10 @@ import { getMCPClient, wrapMcpToolsWithApproval } from './llm/mcp';
 const MCP_RETRY_INITIAL_DELAY_MS = 5_000;
 const MCP_MAX_RETRIES = 5;
 
+/**
+ * Connects to MCP and loads its approval-wrapped tools before Slack starts.
+ * Retries every startup failure with bounded exponential backoff before propagating the final error.
+ */
 async function connectMCP() {
   let retryCount = 0;
 
