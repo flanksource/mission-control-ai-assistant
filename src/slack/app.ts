@@ -1,4 +1,5 @@
 import { App, SayFn, StringIndexed } from '@slack/bolt';
+import { LanguageModelV3 } from '@ai-sdk/provider';
 import type { AppMentionEvent, GenericMessageEvent } from '@slack/types';
 import type { WebClient, Logger } from '@slack/web-api';
 import {
@@ -9,7 +10,7 @@ import {
   formatApprovalPrompt,
   PendingApproval,
 } from './approvals';
-import { generateText, ModelMessage, stepCountIs, type LanguageModel, type ToolSet } from 'ai';
+import { generateText, ModelMessage, stepCountIs, type ToolSet } from 'ai';
 import { ToolApprovalRequest, ToolCallPart } from '@ai-sdk/provider-utils';
 import {
   buildApprovalBlocks,
@@ -61,7 +62,7 @@ export function getLogLevel(level?: string): LogLevel {
 export async function slackApp(
   botToken: string,
   appToken: string,
-  model: LanguageModel,
+  model: LanguageModelV3,
   tools?: ToolSet,
 ): Promise<App<StringIndexed>> {
   const app = new App({
@@ -160,7 +161,7 @@ async function handleToolApprovalAction({
   client: WebClient;
   logger: Logger;
   botUserId: string;
-  model: LanguageModel;
+  model: LanguageModelV3;
   tools?: ToolSet;
   approved: boolean;
   reason?: string;
@@ -245,7 +246,7 @@ async function handleApprovalDecision({
   approvals: PendingApproval[];
   approved: boolean;
   reason?: string;
-  model: LanguageModel;
+  model: LanguageModelV3;
   tools?: ToolSet;
   client: WebClient;
   channel: string;
@@ -327,7 +328,7 @@ interface SlackHandlerContext {
 export async function respondWithLLM(
   { message, say, client, logger }: SlackHandlerContext,
   botUserId: string,
-  model: LanguageModel,
+  model: LanguageModelV3,
   tools?: ToolSet,
 ) {
   const blocks = 'blocks' in message ? (message.blocks ?? []) : [];
