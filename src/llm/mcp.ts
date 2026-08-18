@@ -1,4 +1,4 @@
-import { createMCPClient, type MCPClient } from '@ai-sdk/mcp';
+import { experimental_createMCPClient as createMCPClient, MCPClient } from '@ai-sdk/mcp';
 import type { ToolSet } from 'ai';
 
 export async function getMCPClient(): Promise<MCPClient | undefined> {
@@ -42,7 +42,7 @@ const TOOLS_WITH_NO_APPROVAL_REQUIRED = [
   'read_artifact_metadata',
 ] as const;
 
-export function wrapMcpToolsWithApproval(tools: Awaited<ReturnType<MCPClient['tools']>>): ToolSet {
+export function wrapMcpToolsWithApproval(tools: ToolSet): ToolSet {
   return Object.fromEntries(
     Object.entries(tools).map(([name, tool]) => {
       const noApproval =
@@ -58,5 +58,5 @@ export function wrapMcpToolsWithApproval(tools: Awaited<ReturnType<MCPClient['to
         },
       ];
     }),
-  ) as ToolSet;
+  );
 }
