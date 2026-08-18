@@ -11,12 +11,12 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.2",
-    "@ai-sdk/google": "^3.0.2",
-    "@ai-sdk/mcp": "^1.0.1",
-    "@ai-sdk/openai": "^3.0.2",
+    "@ai-sdk/anthropic": "4.0.39",
+    "@ai-sdk/google": "4.0.44",
+    "@ai-sdk/mcp": "2.0.32",
+    "@ai-sdk/openai": "4.0.42",
     "@slack/bolt": "^4.0.0",
-    "ai": "^6.0.5",
+    "ai": "7.0.66",
     "dotenv": "^16.4.7"
   },
   "devDependencies": {
